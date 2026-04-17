@@ -22,7 +22,7 @@ import { useBroadcastChannel } from '@vueuse/core'
 // import { embed } from '@xsai/embed'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { useAuthProviderSync } from '../../composables/use-auth-provider-sync'
@@ -525,6 +525,16 @@ if (typeof window !== 'undefined') {
 onMounted(async () => {
   db.value = drizzle({ connection: { bundles: getImportUrlBundles() } })
   await db.value.execute(`CREATE TABLE memory_test (vec FLOAT[768]);`)
+})
+
+// NOTICE: When returning from settings (route navigation), the stage may fail to render
+// due to WebGL context loss or model init errors. Force a full model reload on re-activation,
+// matching the behavior of a page refresh where the character always appears.
+onActivated(async () => {
+  showStage.value = false
+  await settingsStore.updateStageModel()
+  await nextTick()
+  showStage.value = true
 })
 
 watch([stageModelRenderer, () => props.paused], ([renderer]) => {

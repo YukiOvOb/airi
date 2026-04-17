@@ -71,7 +71,7 @@ watch(settings.themeColorsHueDynamic, () => {
 // Initialize first-time setup check when app mounts
 onMounted(async () => {
   analyticsStore.initialize()
-  await displayModelsStore.initialize()
+  await displayModelsStore.initialize().catch(err => console.error('Failed to initialize display models:', err))
   cardStore.initialize()
 
   if (onboardingStore.needsOnboarding) {
@@ -85,9 +85,9 @@ onMounted(async () => {
   contextBridgeStore.initialize()
   characterOrchestratorStore.initialize()
 
-  await displayModelsStore.loadDisplayModelsFromIndexedDB()
-  await settingsStore.initializeStageModel()
-  await settingsAudioDeviceStore.initialize()
+  await displayModelsStore.loadDisplayModelsFromIndexedDB().catch(err => console.error('Failed to load display models from IndexedDB:', err))
+  await settingsStore.initializeStageModel().catch(err => console.error('Failed to initialize stage model:', err))
+  await settingsAudioDeviceStore.initialize().catch(err => console.error('Failed to initialize audio device settings:', err))
 })
 
 onUnmounted(() => {
@@ -127,7 +127,7 @@ const extraSteps = computed(() => [
     :use-page-specific-transitions="settings.usePageSpecificTransitions.value"
   >
     <RouterView v-slot="{ Component }">
-      <KeepAlive :include="['IndexScenePage', 'StageScenePage']">
+      <KeepAlive :include="['StageLayout']">
         <component :is="Component" />
       </KeepAlive>
     </RouterView>

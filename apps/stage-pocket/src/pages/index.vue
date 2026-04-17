@@ -1,3 +1,6 @@
+<script lang="ts">
+</script>
+
 <script setup lang="ts">
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
@@ -22,6 +25,7 @@ import { useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
 import { breakpointsTailwind, useBreakpoints, useMouse } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+export default { name: 'IndexScenePage' }
 
 import WebSocketStatusButton from '../components/websocket-status-button.vue'
 

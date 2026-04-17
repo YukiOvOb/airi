@@ -1,7 +1,5 @@
 import type { Profile } from 'wlipsync'
 
-import { createWLipSyncNode } from 'wlipsync'
-
 const RAW_KEYS = ['A', 'E', 'I', 'O', 'U', 'S'] as const
 const RAW_TO_VOWEL: Record<typeof RAW_KEYS[number], VowelKey> = {
   A: 'A',
@@ -73,6 +71,10 @@ export async function createLive2DLipSync(
   profile: Profile,
   options: Live2DLipSyncOptions = {},
 ): Promise<Live2DLipSync> {
+  // NOTICE: Dynamic import so wlipsync module evaluation (which references AudioWorkletNode
+  // as a global) is deferred until call time and caught by the caller's try-catch, rather
+  // than crashing Stage.vue on mobile browsers where AudioWorkletNode may not be a global.
+  const { createWLipSyncNode } = await import('wlipsync')
   const node = await createWLipSyncNode(audioContext, profile)
 
   const cap = options.cap ?? 0.7

@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   columns: () => ({ default: 1, sm: 2, xl: 3 }),
   originIndex: 0,
-  animationInitial: () => ({ opacity: 0, y: 10 }),
+  animationInitial: () => ({ opacity: 1, y: 10 }),
   animationEnter: () => ({ opacity: 1, y: 0 }),
   animationDuration: 250,
   delayPerUnit: 80,

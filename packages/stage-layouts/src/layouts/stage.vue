@@ -1,9 +1,14 @@
+<script lang="ts">
+</script>
+
 <script setup lang="ts">
 import { LoginDrawer } from '@proj-airi/stage-ui/components/auth/index'
 import { useBreakpoints } from '@proj-airi/stage-ui/composables'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
 import { storeToRefs } from 'pinia'
 import { RouterView } from 'vue-router'
+
+export default { name: 'StageLayout' }
 
 const { isMobile } = useBreakpoints()
 const { needsLogin } = storeToRefs(useAuthStore())

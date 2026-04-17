@@ -3,7 +3,7 @@ import { Application } from '@pixi/app'
 import { extensions } from '@pixi/extensions'
 import { Ticker, TickerPlugin } from '@pixi/ticker'
 import { Live2DModel } from 'pixi-live2d-display/cubism4'
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   width: number
@@ -97,8 +97,40 @@ watch(() => props.maxFps, (limit) => {
     pixiApp.value.ticker.maxFPS = resolveMaxFps(limit)
 })
 
+async function reinitIfNeeded() {
+  if (!containerRef.value)
+    return
+  // Destroy stale Pixi app before recreating (handles WebGL context loss on mobile Safari)
+  if (pixiApp.value) {
+    try { pixiApp.value.destroy(true) }
+    catch {}
+    pixiApp.value = undefined
+    pixiAppCanvas.value = undefined
+  }
+  await initLive2DPixiStage(containerRef.value)
+}
+
 onMounted(async () => containerRef.value && await initLive2DPixiStage(containerRef.value))
-onUnmounted(() => pixiApp.value?.destroy())
+onUnmounted(() => {
+  try { pixiApp.value?.destroy(true) }
+  catch {}
+})
+
+// NOTICE: On mobile Safari, WebGL contexts are reclaimed when the page navigates away.
+// On re-activation (KeepAlive), restart the ticker if still alive, or fully reinit if context is lost.
+onActivated(async () => {
+  if (!pixiApp.value) {
+    await reinitIfNeeded()
+    return
+  }
+  const gl = (pixiApp.value.renderer as any)?.gl as WebGLRenderingContext | undefined
+  if (gl?.isContextLost()) {
+    await reinitIfNeeded()
+  }
+  else if (!pixiApp.value.ticker.started) {
+    pixiApp.value.ticker.start()
+  }
+})
 
 async function captureFrame() {
   const frame = new Promise<Blob | null>((resolve) => {

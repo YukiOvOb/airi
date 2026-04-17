@@ -177,6 +177,15 @@ export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
   // nested `required` and `additionalProperties` constraints survive provider validation.
   const next: JsonSchema = { ...schema }
 
+  // NOTICE: `xsschema` emits `z.literal(false)` as `{ "const": false }` without a `type` field.
+  // OpenAI-compatible validators require a `type` key in every `anyOf` entry, so we infer it
+  // from the `const` value's JavaScript type when it is missing.
+  if (next.const !== undefined && next.type === undefined) {
+    const constType = typeof next.const
+    if (constType === 'boolean' || constType === 'string' || constType === 'number')
+      next.type = constType
+  }
+
   if (next.properties) {
     next.properties = Object.fromEntries(
       Object.entries(next.properties).map(([key, value]) => {
