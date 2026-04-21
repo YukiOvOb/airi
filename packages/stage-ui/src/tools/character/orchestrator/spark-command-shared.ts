@@ -75,7 +75,10 @@ export const sparkCommandToolSchema = z.object({
   // properties are optional. These root fields stay required in the provider-facing schema
   // and use `null` as the "not supplied" value, then runtime code normalizes them back to
   // `undefined` or defaults before emitting `spark:command`.
-  interrupt: z.union([sparkCommandInterruptSchema, z.null()]).describe('Whether the command should preempt current work.'),
+  // NOTICE: z.literal(false) is intentionally excluded here. OpenAI-compatible validators
+  // reject `"type": ["string","boolean","null"]` (mixed non-null type arrays). The model
+  // should pass null to mean "no interrupt"; the execute function normalizes null → false.
+  interrupt: z.union([z.enum(['force', 'soft']), z.null()]).describe('Whether the command should preempt current work. Use "force" to interrupt immediately, "soft" to queue after current task, or null for no interrupt.'),
   priority: z.union([sparkCommandPrioritySchema, z.null()]).describe('Priority of the command.'),
   intent: z.union([sparkCommandIntentSchema, z.null()]).describe('Intent of the command.'),
   ack: z.union([z.string(), z.null()]).describe('Short acknowledgement or instruction summary for the receiver.'),
@@ -207,16 +210,29 @@ export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
     next.anyOf = next.anyOf.map(value => isJsonSchema(value) ? normalizeNullableAnyOf(value) : value)
 
     const normalizedEntries = next.anyOf.filter(isJsonSchema)
-    const primitiveTypes = normalizedEntries
-      .map(entry => entry.type)
-      .filter((type): type is Exclude<JsonSchema['type'], JsonSchema['type'][]> => typeof type === 'string')
-    const dedupedPrimitiveTypes = [...new Set(primitiveTypes)]
 
-    if (
-      primitiveTypes.length === normalizedEntries.length
-      && dedupedPrimitiveTypes.length > 0
-      && dedupedPrimitiveTypes.every(type => type !== undefined && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(type))
-    ) {
+    // NOTICE: After recursive normalization, some entries may have `type` as a string array
+    // (e.g. `["string","boolean"]` collapsed from a nested anyOf). We flatten those here so
+    // that a parent anyOf whose every entry resolves to scalar types can still collapse into a
+    // single `type` array, preventing a typeless `anyOf` wrapper that trips strict providers.
+    let allAreScalar = true
+    const collectedTypes: string[] = []
+    for (const entry of normalizedEntries) {
+      if (typeof entry.type === 'string' && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(entry.type)) {
+        collectedTypes.push(entry.type)
+      }
+      else if (Array.isArray(entry.type) && (entry.type as string[]).every(t => typeof t === 'string' && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(t))) {
+        collectedTypes.push(...(entry.type as string[]))
+      }
+      else {
+        allAreScalar = false
+        break
+      }
+    }
+
+    const dedupedPrimitiveTypes = [...new Set(collectedTypes)]
+
+    if (allAreScalar && dedupedPrimitiveTypes.length > 0) {
       delete next.anyOf
       next.type = dedupedPrimitiveTypes as JsonSchema['type']
     }

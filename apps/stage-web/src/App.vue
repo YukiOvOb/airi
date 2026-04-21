@@ -81,7 +81,7 @@ watch(settings.themeColorsHueDynamic, () => {
 // Initialize first-time setup check when app mounts
 onMounted(async () => {
   analyticsStore.initialize()
-  await displayModelsStore.initialize()
+  await displayModelsStore.initialize().catch(err => console.error('[App] displayModelsStore.initialize failed:', err))
   cardStore.initialize()
 
   if (onboardingStore.needsOnboarding) {

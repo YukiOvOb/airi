@@ -98,6 +98,9 @@ type PresentEvent
     | { type: 'assistant-append', text: string }
 const { post: postPresent } = useBroadcastChannel<PresentEvent, PresentEvent>({ name: 'airi-chat-present' })
 
+interface EmotionTestEvent { type: 'set-motion', group: string, index?: number }
+const { data: emotionTestData } = useBroadcastChannel<EmotionTestEvent, EmotionTestEvent>({ name: 'airi-emotion-test' })
+
 viewUpdateCleanups.push(live2dStore.onShouldUpdateView(async () => {
   showStage.value = false
   await settingsStore.updateStageModel()
@@ -120,6 +123,11 @@ const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
 
 const { currentMotion } = storeToRefs(useLive2d())
+
+watch(emotionTestData, (msg) => {
+  if (msg?.type === 'set-motion')
+    currentMotion.value = { group: msg.group, index: msg.index }
+})
 
 const emotionsQueue = createQueue<EmotionPayload>({
   handlers: [

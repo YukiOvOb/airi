@@ -74,6 +74,26 @@ describe('tools/character/orchestrator/spark-command', () => {
     expect((normalized.properties?.testField as JsonSchema).anyOf).toBeUndefined()
   })
 
+  it('collapses nested union|null anyOf so every entry has a type key', async () => {
+    // Regression: z.union([z.union([literals], z.null())]) generates triple-nested anyOf
+    // where the outer anyOf[0] has no `type` key, causing strict provider 400 errors.
+    const schemaTestUnion = await toJsonSchema(z.object({
+      testField: z.union([z.union([z.literal('force'), z.literal('soft'), z.literal(false)]), z.null()]),
+    }))
+    const normalized = normalizeNullableAnyOf(schemaTestUnion as JsonSchema)
+    const fieldSchema = normalized.properties?.testField as JsonSchema
+
+    // Should have no anyOf at all, or every anyOf entry must have a type key
+    if (fieldSchema.anyOf) {
+      for (const entry of fieldSchema.anyOf) {
+        expect((entry as JsonSchema).type).toBeDefined()
+      }
+    }
+    else {
+      expect(fieldSchema.type).toBeDefined()
+    }
+  })
+
   it('should render sparkNotifyCommandItemSchema into correct schema', async () => {
     const schemaTest = await toJsonSchema(sparkNotifyCommandItemSchema)
     const normalized = normalizeNullableAnyOf(schemaTest as JsonSchema)
