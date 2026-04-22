@@ -174,10 +174,12 @@ function isJsonSchema(value: JsonSchema | boolean | JsonSchema[] | undefined): v
 }
 
 export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
-  // NOTICE: `xsschema` emits nullable unions like `string | null` as `anyOf`, but some
-  // OpenAI-compatible validators reject those forms while accepting `type: ['string', 'null']`.
-  // We only collapse scalar-or-null unions here; object unions must remain untouched so their
-  // nested `required` and `additionalProperties` constraints survive provider validation.
+  // NOTICE: Some OpenAI-compatible providers reject `type: ["string","null"]` (type arrays) even
+  // though JSON Schema allows them. To maximise compatibility, we never collapse `anyOf` entries
+  // into a type array. Instead we only ensure every `anyOf` entry carries a `type` key (required
+  // by strict providers) and flatten trivially-nested `anyOf` wrappers so no entry is left
+  // without a `type`. Object-union entries are left untouched so their `required` and
+  // `additionalProperties` constraints survive.
   const next: JsonSchema = { ...schema }
 
   // NOTICE: `xsschema` emits `z.literal(false)` as `{ "const": false }` without a `type` field.
@@ -216,42 +218,21 @@ export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
   }
 
   if (next.anyOf) {
-    next.anyOf = next.anyOf.map(value => isJsonSchema(value) ? normalizeNullableAnyOf(value) : value)
+    const processed = next.anyOf.map(value => isJsonSchema(value) ? normalizeNullableAnyOf(value) : value)
 
-    const normalizedEntries = next.anyOf.filter(isJsonSchema)
-
-    // NOTICE: After recursive normalization, some entries may have `type` as a string array
-    // (e.g. `["string","boolean"]` collapsed from a nested anyOf). We flatten those here so
-    // that a parent anyOf whose every entry resolves to scalar types can still collapse into a
-    // single `type` array, preventing a typeless `anyOf` wrapper that trips strict providers.
-    let allAreScalar = true
-    const collectedTypes: string[] = []
-    for (const entry of normalizedEntries) {
-      // NOTICE: Don't collapse anyOf entries that carry constraints beyond just `type` (e.g.
-      // `enum`). Collapsing would produce a bare `type` array and silently drop those
-      // constraints, resulting in a schema that is technically valid but over-permissive.
-      if (entry.enum !== undefined) {
-        allAreScalar = false
-        break
-      }
-      if (typeof entry.type === 'string' && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(entry.type)) {
-        collectedTypes.push(entry.type)
-      }
-      else if (Array.isArray(entry.type) && (entry.type as string[]).every(t => typeof t === 'string' && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(t))) {
-        collectedTypes.push(...(entry.type as string[]))
-      }
-      else {
-        allAreScalar = false
-        break
-      }
+    // NOTICE: `z.union([z.union([...]), z.null()])` can produce a nested anyOf where the outer
+    // entry wraps an inner anyOf with no other properties. That wrapper has no `type` key and
+    // trips strict provider validators. Flatten it by inlining its children into the parent anyOf.
+    // JSON Schema flattening is safe: `anyOf: [anyOf: [A, B], C]` is equivalent to `anyOf: [A, B, C]`.
+    const flattened: (JsonSchema | boolean)[] = []
+    for (const entry of processed) {
+      if (isJsonSchema(entry) && entry.anyOf && Object.keys(entry).length === 1)
+        flattened.push(...entry.anyOf)
+      else
+        flattened.push(entry)
     }
 
-    const dedupedPrimitiveTypes = [...new Set(collectedTypes)]
-
-    if (allAreScalar && dedupedPrimitiveTypes.length > 0) {
-      delete next.anyOf
-      next.type = dedupedPrimitiveTypes as JsonSchema['type']
-    }
+    next.anyOf = flattened
   }
 
   if (next.oneOf) {

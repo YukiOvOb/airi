@@ -54,24 +54,35 @@ function findObjectSchema(schema: JsonSchema | undefined, predicate: (schema: Js
 }
 
 describe('tools/character/orchestrator/spark-command', () => {
-  it('normalizes scalar|null anyOf into a type array', async () => {
+  it('keeps scalar|null as anyOf so providers that reject type arrays still work', async () => {
+    // Regression: collapsing anyOf:[{type:"string"},{type:"null"}] into type:["string","null"]
+    // trips providers that accept anyOf with typed entries but reject JSON Schema type arrays.
     const schemaTestUnion = await toJsonSchema(z.object({
       testField: z.union([z.string(), z.null()]),
     }))
     const normalized = normalizeNullableAnyOf(schemaTestUnion as JsonSchema)
+    const fieldSchema = normalized.properties?.testField as JsonSchema
 
-    expect((normalized.properties?.testField as JsonSchema).type).toEqual(['string', 'null'])
-    expect((normalized.properties?.testField as JsonSchema).anyOf).toBeUndefined()
+    expect(fieldSchema.anyOf).toBeDefined()
+    for (const entry of fieldSchema.anyOf!) {
+      expect((entry as JsonSchema).type).toBeDefined()
+    }
   })
 
-  it('deduplicates primitive types after normalization', async () => {
+  it('adds type to every literal anyOf entry without collapsing', async () => {
+    // Regression: collapsing anyOf with const entries into a bare type array drops the const
+    // constraints and trips providers that reject type arrays.
     const schemaTestUnion = await toJsonSchema(z.object({
       testField: z.union([z.literal('force'), z.literal('soft'), z.literal(false)]),
     }))
     const normalized = normalizeNullableAnyOf(schemaTestUnion as JsonSchema)
+    const fieldSchema = normalized.properties?.testField as JsonSchema
 
-    expect((normalized.properties?.testField as JsonSchema).type).toEqual(['string', 'boolean'])
-    expect((normalized.properties?.testField as JsonSchema).anyOf).toBeUndefined()
+    // anyOf must stay (not collapsed) and every entry must carry a type key
+    expect(fieldSchema.anyOf).toBeDefined()
+    for (const entry of fieldSchema.anyOf!) {
+      expect((entry as JsonSchema).type).toBeDefined()
+    }
   })
 
   it('adds type to enum anyOf entry and preserves enum constraint (does not collapse)', async () => {
