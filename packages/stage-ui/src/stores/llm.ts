@@ -7,7 +7,9 @@ import { streamText } from '@xsai/stream-text'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-import { createSparkCommandTool, debug, mcp } from '../tools'
+// DISABLED: createSparkCommandTool and debug are unused while their tools are disabled;
+// restore to: import { createSparkCommandTool, debug, mcp } from '../tools'
+import { mcp } from '../tools'
 import { useModsServerChannelStore } from './mods/api/channel-server'
 
 export type StreamEvent
@@ -69,9 +71,12 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
   const tools = supportedTools
     ? [
         ...await mcp(),
-        ...await debug(),
+        // DISABLED: debug tool has no production value; re-enable by uncommenting
+        // ...await debug(),
         ...await resolveTools(),
-        await createSparkCommandTool({ sendSparkCommand }),
+        // DISABLED: spark command tool used for gaming/discord/twitter orchestration only;
+        // re-enable when sub-agent modules are needed
+        // await createSparkCommandTool({ sendSparkCommand }),
       ]
     : undefined
 

@@ -14,7 +14,8 @@ import { useAnalytics } from '../composables'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
 import { buildContextPromptMessage } from './chat/context-prompt'
-import { createDatetimeContext, createMinecraftContext } from './chat/context-providers'
+// DISABLED: createMinecraftContext removed from active imports; re-enable with full import when needed
+import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
 import { useChatSessionStore } from './chat/session-store'
@@ -125,9 +126,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
-    const minecraftContext = createMinecraftContext()
-    if (minecraftContext)
-      chatContext.ingestContextMessage(minecraftContext)
+    // DISABLED: Minecraft context injection disabled; re-enable the import and these lines to restore
+    // const minecraftContext = createMinecraftContext()
+    // if (minecraftContext)
+    //   chatContext.ingestContextMessage(minecraftContext)
 
     const sendingCreatedAt = Date.now()
     // TODO: Expire or prune stale runtime contexts from disconnected services before composing.

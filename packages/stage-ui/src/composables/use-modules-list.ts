@@ -41,7 +41,8 @@ export function useModulesList() {
   const factorioStore = useFactorioStore()
   const beatSyncState = ref<BeatSyncDetectorState>()
 
-  minecraftStore.initialize()
+  // DISABLED: Minecraft event listeners disabled; re-enable to restore UI event tracking
+  // minecraftStore.initialize()
 
   const modulesList = computed<Module[]>(() => [
     {
