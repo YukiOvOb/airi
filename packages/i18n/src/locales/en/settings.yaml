@@ -382,6 +382,14 @@ pages:
             show_more: Show more
             subtitle: Select a default model from the provider
             title: Model
+            confirm: Confirm
+            confirming: Checking...
+            error_dialog_title: Configuration Error
+            error_dialog_close: Close
+            error_no_provider: Please select a provider first
+            error_no_model: Please select a model first
+            error_provider_not_configured: Provider configuration is invalid. Please check your API key in Provider Settings.
+            error_go_to_settings: Go to Provider Settings
       title: Consciousness
     description: Thinking, vision, speech synthesis, gaming, etc.
     gaming-factorio:

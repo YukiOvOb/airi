@@ -74,6 +74,27 @@ describe('tools/character/orchestrator/spark-command', () => {
     expect((normalized.properties?.testField as JsonSchema).anyOf).toBeUndefined()
   })
 
+  it('adds type to enum anyOf entry and preserves enum constraint (does not collapse)', async () => {
+    // Regression: xsschema emits z.enum([...]) as `{ "enum": [...] }` without a `type` field.
+    // Providers require a `type` key on every anyOf entry, but collapsing away the anyOf would
+    // silently drop the enum constraint. The fix infers `type` from enum values and skips collapse.
+    const schemaTestUnion = await toJsonSchema(z.object({
+      testField: z.union([z.enum(['force', 'soft']), z.null()]),
+    }))
+    const normalized = normalizeNullableAnyOf(schemaTestUnion as JsonSchema)
+    const fieldSchema = normalized.properties?.testField as JsonSchema
+
+    // Must have anyOf (not collapsed) so the enum constraint is preserved
+    expect(fieldSchema.anyOf).toBeDefined()
+    // Every anyOf entry must have a type key
+    for (const entry of fieldSchema.anyOf!) {
+      expect((entry as JsonSchema).type).toBeDefined()
+    }
+    // The enum entry must still carry its values
+    const enumEntry = (fieldSchema.anyOf as JsonSchema[]).find(e => (e as JsonSchema).enum !== undefined)
+    expect(enumEntry?.enum).toEqual(['force', 'soft'])
+  })
+
   it('collapses nested union|null anyOf so every entry has a type key', async () => {
     // Regression: z.union([z.union([literals], z.null())]) generates triple-nested anyOf
     // where the outer anyOf[0] has no `type` key, causing strict provider 400 errors.

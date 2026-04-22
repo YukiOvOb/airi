@@ -3,10 +3,12 @@ import { Alert, ErrorContainer, RadioCardManySelect, RadioCardSimple } from '@pr
 import { useAnalytics } from '@proj-airi/stage-ui/composables'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
+import { Button } from '@proj-airi/ui'
 import { storeToRefs } from 'pinia'
-import { watch } from 'vue'
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
@@ -24,6 +26,11 @@ const {
 
 const { t } = useI18n()
 const { trackProviderClick } = useAnalytics()
+const router = useRouter()
+
+const isConfirming = ref(false)
+const errorDialogOpen = ref(false)
+const errorMessage = ref('')
 
 watch(activeProvider, async (provider, oldProvider) => {
   if (!provider)
@@ -47,6 +54,40 @@ function handleDeleteProvider(providerId: string) {
     activeModel.value = ''
   }
   providersStore.deleteProvider(providerId)
+}
+
+async function handleConfirm() {
+  const base = 'settings.pages.modules.consciousness.sections.section.provider-model-selection'
+
+  if (!activeProvider.value) {
+    errorMessage.value = t(`${base}.error_no_provider`)
+    errorDialogOpen.value = true
+    return
+  }
+  if (!activeModel.value) {
+    errorMessage.value = t(`${base}.error_no_model`)
+    errorDialogOpen.value = true
+    return
+  }
+
+  isConfirming.value = true
+  try {
+    const isValid = await providersStore.validateProvider(activeProvider.value, { force: true })
+    if (isValid) {
+      router.back()
+    }
+    else {
+      errorMessage.value = t(`${base}.error_provider_not_configured`)
+      errorDialogOpen.value = true
+    }
+  }
+  catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : String(err)
+    errorDialogOpen.value = true
+  }
+  finally {
+    isConfirming.value = false
+  }
 }
 </script>
 
@@ -267,7 +308,56 @@ function handleDeleteProvider(providerId: string) {
         </div>
       </div>
     </div>
+
+    <!-- Confirm button -->
+    <div v-if="activeProvider" flex="~ justify-end" pt-2>
+      <Button
+        :disabled="isConfirming"
+        @click="handleConfirm"
+      >
+        <div v-if="isConfirming" i-solar:spinner-line-duotone class="mr-1 animate-spin text-base" />
+        {{ isConfirming
+          ? t('settings.pages.modules.consciousness.sections.section.provider-model-selection.confirming')
+          : t('settings.pages.modules.consciousness.sections.section.provider-model-selection.confirm') }}
+      </Button>
+    </div>
   </div>
+
+  <!-- Error dialog -->
+  <DialogRoot :open="errorDialogOpen" @update:open="(v: boolean) => errorDialogOpen = v">
+    <DialogPortal>
+      <DialogOverlay :class="['fixed', 'inset-0', 'z-[9999]', 'bg-black/50', 'backdrop-blur-sm']" />
+      <DialogContent
+        :class="[
+          'fixed', 'left-1/2', 'top-1/2', 'z-[9999]',
+          'max-w-md', 'w-[92dvw]', 'transform',
+          'rounded-2xl', 'bg-white', 'p-6', 'shadow-xl', 'outline-none',
+          '-translate-x-1/2', '-translate-y-1/2',
+          'data-[state=closed]:animate-contentHide', 'data-[state=open]:animate-contentShow',
+          'dark:bg-neutral-900',
+        ]"
+      >
+        <DialogTitle class="mb-3 text-lg text-neutral-900 font-semibold dark:text-neutral-100">
+          {{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.error_dialog_title') }}
+        </DialogTitle>
+        <p class="mb-4 text-sm text-neutral-600 dark:text-neutral-300">
+          {{ errorMessage }}
+        </p>
+        <div flex="~ gap-2 justify-end flex-wrap">
+          <RouterLink
+            to="/settings/providers"
+            class="inline-flex items-center rounded-lg px-3 py-1.5 text-sm text-primary-600 font-medium dark:text-primary-400 hover:underline"
+            @click="errorDialogOpen = false"
+          >
+            {{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.error_go_to_settings') }}
+          </RouterLink>
+          <Button size="sm" variant="secondary" @click="errorDialogOpen = false">
+            {{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.error_dialog_close') }}
+          </Button>
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 
   <div
     v-motion

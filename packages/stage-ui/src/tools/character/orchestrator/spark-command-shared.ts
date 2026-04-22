@@ -189,6 +189,15 @@ export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
       next.type = constType
   }
 
+  // NOTICE: `xsschema` emits `z.enum([...])` as `{ "enum": [...] }` without a `type` field.
+  // OpenAI-compatible validators require a `type` key in every `anyOf` entry, so we infer it
+  // from the enum values' JavaScript types when all values share the same primitive type.
+  if (next.enum !== undefined && next.type === undefined) {
+    const enumTypes = [...new Set((next.enum as unknown[]).map(v => v === null ? 'null' : typeof v))]
+    if (enumTypes.length === 1 && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(enumTypes[0]!))
+      next.type = enumTypes[0] as JsonSchema['type']
+  }
+
   if (next.properties) {
     next.properties = Object.fromEntries(
       Object.entries(next.properties).map(([key, value]) => {
@@ -218,6 +227,13 @@ export function normalizeNullableAnyOf(schema: JsonSchema): JsonSchema {
     let allAreScalar = true
     const collectedTypes: string[] = []
     for (const entry of normalizedEntries) {
+      // NOTICE: Don't collapse anyOf entries that carry constraints beyond just `type` (e.g.
+      // `enum`). Collapsing would produce a bare `type` array and silently drop those
+      // constraints, resulting in a schema that is technically valid but over-permissive.
+      if (entry.enum !== undefined) {
+        allAreScalar = false
+        break
+      }
       if (typeof entry.type === 'string' && JSON_SCHEMA_NULLABLE_SCALAR_TYPES.has(entry.type)) {
         collectedTypes.push(entry.type)
       }

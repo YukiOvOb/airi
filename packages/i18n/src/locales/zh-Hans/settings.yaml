@@ -366,6 +366,14 @@ pages:
             show_more: 收起
             subtitle: 选择一个默认模型
             title: 模型
+            confirm: 确定
+            confirming: 检验中...
+            error_dialog_title: 配置错误
+            error_dialog_close: 关闭
+            error_no_provider: 请先选择服务来源
+            error_no_model: 请先选择模型
+            error_provider_not_configured: 服务来源配置无效，请在服务来源设置中检查您的 API 密钥。
+            error_go_to_settings: 前往服务来源设置
       title: 意识
     description: 思维，视觉，言语综合，游戏等
     gaming-factorio:
