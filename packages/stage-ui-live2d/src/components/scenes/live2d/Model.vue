@@ -294,11 +294,9 @@ async function loadModel() {
     setScaleAndPosition()
 
     // --- Interaction
-
-    model.value.on('hit', (hitAreas) => {
-      if (model.value && hitAreas.includes('body'))
-        model.value.motion('tap_body')
-    })
+    // NOTICE: autoInteract is false so the built-in 'hit' event never fires.
+    // Hit detection is handled manually via handleTap(), which is called by
+    // the parent Live2D.vue on pointer-up when the pointer has not dragged.
 
     // --- Motion
 
@@ -785,9 +783,42 @@ function listMotionGroups() {
   return availableMotions.value
 }
 
+/**
+ * Manual hit-test at CSS-pixel position (x, y) within the canvas.
+ * Plays the best matching tap motion, or a random non-idle motion as fallback.
+ * Called by Live2D.vue on pointer-up when the pointer has not dragged.
+ */
+function handleTap(cssX: number, cssY: number) {
+  if (!model.value)
+    return
+
+  const hitAreas = model.value.hitTest(cssX, cssY)
+
+  if (hitAreas && hitAreas.length > 0) {
+    // Try tap_<area> motion for each hit area (e.g. tap_body, tap_head)
+    for (const area of hitAreas) {
+      const tapName = `tap_${area.toLowerCase().replace('hitarea', '').trim()}`
+      const match = availableMotions.value.find(m => m.motionName.toLowerCase() === tapName)
+      if (match) {
+        void setMotion(match.motionName, match.motionIndex)
+        return
+      }
+    }
+  }
+
+  // Fallback: pick a random non-idle motion
+  const nonIdle = availableMotions.value.filter(m => !m.motionName.toLowerCase().includes('idle'))
+  const pool = nonIdle.length > 0 ? nonIdle : availableMotions.value
+  if (!pool.length)
+    return
+  const pick = pool[Math.floor(Math.random() * pool.length)]
+  void setMotion(pick!.motionName, pick!.motionIndex)
+}
+
 defineExpose({
   setMotion,
   listMotionGroups,
+  handleTap,
 })
 
 import.meta.hot?.dispose(() => {
