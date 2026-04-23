@@ -134,6 +134,71 @@ function extractTextContent(node: Element): string {
 }
 
 /**
+ * Speech field names to look for when a model responds with a JSON object instead of
+ * natural language. Checked in order; the first match is used.
+ */
+const JSON_SPEECH_FIELDS = ['reply', 'response', 'text', 'content', 'speech', 'message', 'answer'] as const
+
+/**
+ * If the response is a complete JSON object, extract the speech text from it.
+ * Returns null when the response is not JSON or contains no recognised speech field.
+ */
+function extractSpeechFromJson(response: string): string | null {
+  const trimmed = response.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}'))
+    return null
+  try {
+    const obj = JSON.parse(trimmed) as Record<string, unknown>
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+      return null
+    for (const field of JSON_SPEECH_FIELDS) {
+      if (typeof obj[field] === 'string' && (obj[field] as string).trim())
+        return (obj[field] as string).trim()
+    }
+  }
+  catch {
+    // Not valid JSON
+  }
+  return null
+}
+
+/**
+ * If the response is a complete JSON object, build a synthetic `<|ACT:...|>` token
+ * from the emotion-related fields so it can be fed into the existing emotion pipeline
+ * (parseActEmotion → Live2D motion).
+ * Returns null when the response is not JSON or has no emotion data.
+ */
+export function extractEmotionTokenFromJson(response: string): string | null {
+  const trimmed = response.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}'))
+    return null
+  try {
+    const obj = JSON.parse(trimmed) as Record<string, unknown>
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+      return null
+
+    const emotion = obj.emotion
+    if (emotion === undefined || emotion === null)
+      return null
+
+    // Build a payload that parseActEmotion can consume: { emotion, motion?, cognitive?, intent? }
+    const actPayload: Record<string, unknown> = { emotion }
+    if (typeof obj.motion === 'string')
+      actPayload.motion = obj.motion
+    if (typeof obj.cognitive === 'string')
+      actPayload.cognitive = obj.cognitive
+    if (typeof obj.intent === 'string')
+      actPayload.intent = obj.intent
+
+    return `<|ACT:${JSON.stringify(actPayload)}|>`
+  }
+  catch {
+    // Not valid JSON
+  }
+  return null
+}
+
+/**
  * Categorizes a model response by dynamically extracting any XML-like tags
  * Works with any tag format the model uses
  */
@@ -141,6 +206,18 @@ export function categorizeResponse(
   response: string,
   _providerId?: string,
 ): CategorizedResponse {
+  // When the model ignores the <|ACT:...|> format and returns a bare JSON object,
+  // extract only the speech field so TTS and the UI don't read JSON keys/brackets.
+  const jsonSpeech = extractSpeechFromJson(response)
+  if (jsonSpeech !== null) {
+    return {
+      segments: [],
+      speech: jsonSpeech,
+      reasoning: '',
+      raw: response,
+    }
+  }
+
   // Extract all tags dynamically
   const extractedTags = extractAllTags(response)
 
@@ -214,11 +291,17 @@ export function categorizeResponse(
 export function createStreamingCategorizer(
   providerId?: string,
   onSegment?: (segment: CategorizedSegment) => void,
+  onJsonEmotion?: (emotionToken: string) => void,
 ) {
   let buffer = ''
   let categorized: CategorizedResponse | null = null
   let lastEmittedSegmentIndex = -1
   let lastParsedLength = 0
+
+  // Track whether the buffer looks like a JSON-formatted response
+  let isJsonResponse: boolean | null = null // null = undecided, true/false = decided
+  // Once JSON speech has been emitted (after the closing `}`), record it here
+  let emittedJsonSpeech: string | null = null
 
   // Lightweight state machine to detect tag closures without parsing entire buffer
   type TagState = 'outside' | 'in-opening-tag' | 'in-content' | 'in-closing-tag'
@@ -365,6 +448,30 @@ export function createStreamingCategorizer(
      * Removes content that falls within thought/reasoning segments
      */
     filterToSpeech(text: string, startPosition: number): string {
+      // Detect JSON-formatted responses: if the buffer begins with `{`, the model
+      // is responding with a raw JSON object instead of natural language.
+      // Suppress everything until the JSON is complete, then emit only the speech field.
+      if (isJsonResponse === null)
+        isJsonResponse = buffer.trim().startsWith('{')
+
+      if (isJsonResponse) {
+        const jsonSpeech = extractSpeechFromJson(buffer)
+        if (jsonSpeech === null) {
+          // JSON incomplete — suppress this chunk
+          return ''
+        }
+        // JSON complete: emit the speech field exactly once
+        if (emittedJsonSpeech === null) {
+          emittedJsonSpeech = jsonSpeech
+          // Fire the emotion callback so the caller can trigger Live2D animations
+          const emotionToken = extractEmotionTokenFromJson(buffer)
+          if (emotionToken)
+            onJsonEmotion?.(emotionToken)
+          return jsonSpeech
+        }
+        return ''
+      }
+
       // Check if we're currently inside an incomplete tag
       if (checkIncompleteTag()) {
         // Try to find where the tag closes in the combined buffer + text

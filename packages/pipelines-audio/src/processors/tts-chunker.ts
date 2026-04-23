@@ -212,6 +212,9 @@ export async function chunkEmitter(
     text
       .replaceAll(TTS_SPECIAL_TOKEN, '')
       .replaceAll(TTS_FLUSH_INSTRUCTION, '')
+      .replace(/https?:\/\/\S+/g, '')
+      // Strip any <|...|> special tokens that were not consumed by the upstream parser
+      .replace(/<\|[\s\S]*?\|>/g, '')
       .trim()
 
   try {

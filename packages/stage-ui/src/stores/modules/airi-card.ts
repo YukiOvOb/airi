@@ -212,16 +212,25 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   }
 
   function initialize() {
-    if (cards.value.has('default'))
-      return
-    cards.value.set('default', newAiriCard({
-      name: 'ReLU',
-      version: '1.0.0',
-      description: SystemPromptV2(
-        t('base.prompt.prefix'),
-        t('base.prompt.suffix'),
-      ).content,
-    }))
+    const freshDescription = SystemPromptV2(
+      t('base.prompt.prefix'),
+      t('base.prompt.suffix'),
+    ).content
+
+    const existing = cards.value.get('default')
+    if (!existing) {
+      cards.value.set('default', newAiriCard({
+        name: 'ReLU',
+        version: '1.0.0',
+        description: freshDescription,
+      }))
+    }
+    else if (existing.description !== freshDescription) {
+      // Migration: keep all user settings but sync the system prompt template
+      // so ACT format fixes in i18n are picked up automatically.
+      cards.value.set('default', { ...existing, description: freshDescription })
+    }
+
     if (!activeCardId.value)
       activeCardId.value = 'default'
   }

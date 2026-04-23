@@ -9,7 +9,6 @@ import { ref } from 'vue'
 
 // DISABLED: createSparkCommandTool and debug are unused while their tools are disabled;
 // restore to: import { createSparkCommandTool, debug, mcp } from '../tools'
-import { mcp } from '../tools'
 import { useModsServerChannelStore } from './mods/api/channel-server'
 
 export type StreamEvent
@@ -70,7 +69,9 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
   const supportedTools = streamOptionsToolsCompatibilityOk(model, chatProvider, messages, options)
   const tools = supportedTools
     ? [
-        ...await mcp(),
+        // DISABLED: MCP tools disabled — not used by emotion/expression system; re-enable when
+        // an MCP server is actively configured and external tool access is needed.
+        // ...await mcp(),
         // DISABLED: debug tool has no production value; re-enable by uncommenting
         // ...await debug(),
         ...await resolveTools(),

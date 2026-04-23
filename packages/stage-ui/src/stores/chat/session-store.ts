@@ -396,7 +396,15 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
   function getSessionMessages(sessionId: string) {
     ensureSession(sessionId)
-    return sessionMessages.value[sessionId] ?? []
+    const messages = sessionMessages.value[sessionId] ?? []
+    // Always reflect the current card's system prompt so stale sessions (created
+    // when the card wasn't loaded yet, or on a different origin) use the live value.
+    if (messages.length > 0 && messages[0].role === 'system') {
+      const freshContent = codeBlockSystemPrompt + mathSyntaxSystemPrompt + systemPrompt.value
+      if (messages[0].content !== freshContent)
+        return [{ ...messages[0], content: freshContent }, ...messages.slice(1)]
+    }
+    return messages
   }
 
   function getSessionGeneration(sessionId: string) {

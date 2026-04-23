@@ -22,6 +22,7 @@ import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
 import { useContextObservabilityStore } from './devtools/context-observability'
 import { useLLM } from './llm'
+import { useAiriCardStore } from './modules/airi-card'
 import { useConsciousnessStore } from './modules/consciousness'
 
 interface SendOptions {
@@ -71,6 +72,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const chatStream = useChatStreamStore()
   const chatContext = useChatContextStore()
   const contextObservability = useContextObservabilityStore()
+  const airiCardStore = useAiriCardStore()
+  const { systemPrompt: liveSystemPrompt } = storeToRefs(airiCardStore)
   const { activeSessionId } = storeToRefs(chatSession)
   const { streamingMessage } = storeToRefs(chatStream)
 
@@ -210,7 +213,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
       const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
 
-      const categorizer = createStreamingCategorizer(activeProvider.value)
+      const categorizer = createStreamingCategorizer(activeProvider.value, undefined, (emotionToken) => {
+        void hooks.emitTokenSpecialHooks(emotionToken, streamingMessageContext)
+      })
       let streamPosition = 0
 
       const parser = useLlmmarkerParser({
@@ -292,6 +297,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         return rawMessage
       })
+
+      // Always use the live system prompt from the active card so stale or
+      // empty sessions (e.g. created on a different origin before settings were
+      // imported) still receive the correct character instructions.
+      if (liveSystemPrompt.value && newMessages.length > 0 && newMessages[0].role === 'system') {
+        const codeBlock = '- For any programming code block, always specify the programming language that supported on @shikijs/rehype on the rendered markdown, eg. ```python ... ```\n'
+        const mathSyntax = '- For any math equation, use LaTeX format, eg: $ x^3 $, always escape dollar sign outside math equation\n'
+        // NOTICE: Normalize ACT token format in saved card descriptions that pre-date the {} fix.
+        // Old cards store examples as <|ACT:"emotion":"x"|>; parser regex requires <|ACT:{"emotion":"x"}|>.
+        // Regex: match <|ACT: not followed by { and wrap the payload in {}.
+        const normalizedPrompt = liveSystemPrompt.value.replace(/<\|ACT:(?!\{)([^|]+)\|>/g, '<|ACT:{$1}|>')
+        newMessages = [{ ...newMessages[0], content: codeBlock + mathSyntax + normalizedPrompt }, ...newMessages.slice(1)]
+      }
 
       const contextsSnapshot = chatContext.getContextsSnapshot()
       const contextPromptMessage = buildContextPromptMessage(contextsSnapshot)

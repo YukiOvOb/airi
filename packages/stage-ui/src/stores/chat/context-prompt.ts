@@ -1,4 +1,4 @@
-import type { UserMessage } from '@xsai/shared-chat'
+import type { SystemMessage } from '@xsai/shared-chat'
 
 import type { ContextMessage } from '../../types/chat'
 
@@ -13,18 +13,13 @@ export function formatContextPromptText(contextsSnapshot: ContextSnapshot) {
     + `${Object.entries(contextsSnapshot).map(([key, value]) => `Module ${key}: ${JSON.stringify(value)}`).join('\n')}\n`
 }
 
-export function buildContextPromptMessage(contextsSnapshot: ContextSnapshot): UserMessage | null {
+export function buildContextPromptMessage(contextsSnapshot: ContextSnapshot): SystemMessage | null {
   const promptText = formatContextPromptText(contextsSnapshot)
   if (!promptText)
     return null
 
   return {
-    role: 'user',
-    content: [
-      {
-        type: 'text',
-        text: promptText,
-      },
-    ],
+    role: 'system',
+    content: promptText,
   }
 }

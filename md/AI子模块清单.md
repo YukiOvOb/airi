@@ -1,6 +1,6 @@
 # AIRI AI 子模块清单
 
-> 最后更新：2026-04-22
+> 最后更新：2026-04-23（第二次）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 工具名 | 文件 | 功能说明 | 状态 |
 |--------|------|---------|------|
-| `builtIn_mcpListTools` / `builtIn_mcpCallTool` | `src/tools/mcp.ts` | MCP 协议网关，桥接外部 MCP 服务器工具 | **启用** |
+| `builtIn_mcpListTools` / `builtIn_mcpCallTool` | `src/tools/mcp.ts` | MCP 协议网关，桥接外部 MCP 服务器工具 | **禁用** |
 | `builtIn_debugRandomNumber` | `src/tools/debug.ts` | 调试用随机数生成，无实际生产价值 | **禁用** |
 | `builtIn_emitSparkCommand` | `src/tools/character/orchestrator/spark-command.ts` | 向 Minecraft / Discord / Factorio 等子模块发送指令 | **禁用** |
 
@@ -79,8 +79,9 @@
 
 | 禁用位置 | 文件 | 如何恢复 |
 |---------|------|---------|
-| LLM 工具：`builtIn_debugRandomNumber` | `stores/llm.ts` 第 72 行 | 取消 `// ...await debug()` 的注释 |
-| LLM 工具：`builtIn_emitSparkCommand` | `stores/llm.ts` 第 76 行 | 取消 `// await createSparkCommandTool(...)` 的注释 |
+| LLM 工具：`builtIn_mcpListTools` / `builtIn_mcpCallTool` | `stores/llm.ts` | 取消 `// ...await mcp()` 的注释（需已配置 MCP server） |
+| LLM 工具：`builtIn_debugRandomNumber` | `stores/llm.ts` | 取消 `// ...await debug()` 的注释 |
+| LLM 工具：`builtIn_emitSparkCommand` | `stores/llm.ts` | 取消 `// await createSparkCommandTool(...)` 的注释 |
 | Minecraft context 注入 | `stores/chat.ts` 第 128-130 行 | 恢复 `createMinecraftContext` 导入和调用 |
 | Minecraft store 初始化 | `composables/use-modules-list.ts` 第 44 行 | 取消 `// minecraftStore.initialize()` 的注释 |
 
@@ -100,4 +101,14 @@
 LLM 文本输出 → llm-marker-parser.ts 解析 <|...|> 标记 → writeSpecial() → 触发表情/动作
 ```
 
-示例：LLM 回复 `你好！<|happy|> 很高兴见到你` → 触发 `happy` 表情，同时 TTS 朗读去掉标记后的文字。
+示例：LLM 回复 `<|ACT:{"emotion":"happy"}|> 很高兴见到你！` → 触发 `happy` 表情，TTS 只朗读纯文字。
+
+**ACT token 正确格式**：`<|ACT:{"emotion":"happy"}|>`（payload 必须有外层 `{}`）
+
+**已知问题与修复记录**：
+
+| 日期 | 问题 | 修复位置 |
+|------|------|---------|
+| 2026-04-23 | i18n YAML 中 ACT 格式示例缺少外层 `{}`，导致模型照错误示例输出无法解析的 token | `packages/i18n/src/locales/*/base.yaml` 全部修复 |
+| 2026-04-23 | 已存在的角色卡 description 是 localStorage 快照，i18n 修复不自动生效 | `stores/chat.ts performSend` 注入时自动正则修正（`<\|ACT:(?!\{)([^|]+)\|>` → 加 `{}`） |
+| 2026-04-23 | `airi-card.ts initialize()` 只创建不更新，默认卡 description 永远停留在创建时的格式 | `initialize()` 加迁移逻辑，每次启动同步默认卡 description |
