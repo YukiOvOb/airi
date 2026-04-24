@@ -1,0 +1,298 @@
+<mxfile host="app.diagrams.net" modified="2026-04-24T00:00:00.000Z" agent="Copilot" version="24.7.17" type="device">
+  <diagram id="airi-structure" name="第1页-目录结构与依赖">
+    <mxGraphModel dx="1920" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t1" value="AIRI 目录结构与依赖关系图（仅结构层）" style="text;html=1;strokeColor=none;fillColor=none;fontStyle=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="620" y="20" width="1360" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend1" value="图例：实线箭头 = 依赖方向（A 指向 B 代表 A 依赖 B）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1910" y="70" width="620" height="48" as="geometry" />
+        </mxCell>
+
+        <mxCell id="g-app" value="应用层（apps）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef6ff;strokeColor=#60a5fa;strokeWidth=2;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="50" y="130" width="560" height="760" as="geometry" />
+        </mxCell>
+        <mxCell id="g-core" value="核心共享层（核心编排）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff1f2;strokeColor=#ef4444;strokeWidth=2;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="650" y="130" width="430" height="760" as="geometry" />
+        </mxCell>
+        <mxCell id="g-cap" value="能力层（packages）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#8b5cf6;strokeWidth=2;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="130" width="1430" height="760" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a-web" value="apps/stage-web" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="90" y="200" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a-tama" value="apps/stage-tamagotchi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="330" y="200" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a-pocket" value="apps/stage-pocket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="90" y="320" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a-auth" value="apps/ui-server-auth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="330" y="320" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a-demo" value="apps/component-calling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="90" y="440" width="460" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p-stageui" value="packages/stage-ui\n核心编排中心" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="230" width="320" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p-shared" value="packages/stage-shared" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="190" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-pages" value="packages/stage-pages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="190" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-layouts" value="packages/stage-layouts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="190" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-live2d" value="packages/stage-ui-live2d" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="190" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-three" value="packages/stage-ui-three" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2120" y="190" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-sdk" value="packages/server-sdk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2360" y="190" width="170" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p-runtime" value="packages/server-runtime" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="300" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-i18n" value="packages/i18n" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="300" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-audio" value="packages/audio + pipelines-audio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="300" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-ui" value="packages/ui" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="300" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-memory" value="packages/memory-pgvector" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f97316;strokeWidth=2;strokeDasharray=8 4;" vertex="1" parent="1">
+          <mxGeometry x="2120" y="300" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p-storage" value="stage-ui/database + local storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#06b6d4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2360" y="300" width="170" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note1" value="本页只展示：目录模块与依赖方向\n不包含运行时消息流" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f59e0b;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="420" width="1370" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d1" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-web" target="p-stageui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d2" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-web" target="p-pages"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d3" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-web" target="p-sdk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d4" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-tama" target="p-stageui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d5" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-tama" target="p-pages"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d6" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-tama" target="p-live2d"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d7" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-tama" target="p-three"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d8" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-tama" target="p-runtime"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d9" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-pocket" target="p-stageui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d10" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-pocket" target="p-pages"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d11" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="a-pocket" target="p-live2d"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d12" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=1.5;" edge="1" parent="1" source="a-auth" target="p-stageui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d13" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=1.5;" edge="1" parent="1" source="a-auth" target="p-shared"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="d14" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-shared"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d15" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-pages"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d16" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-layouts"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d17" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-live2d"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d18" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-three"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d19" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-sdk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d20" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-i18n"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d21" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-audio"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d22" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="p-stageui" target="p-ui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d23" style="endArrow=block;html=1;strokeColor=#f97316;strokeWidth=1.8;dashed=1;" edge="1" parent="1" source="p-stageui" target="p-memory"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d24" style="endArrow=block;html=1;strokeColor=#06b6d4;strokeWidth=1.8;dashed=1;" edge="1" parent="1" source="p-stageui" target="p-storage"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="s-plan-title" value="最优解耦方案（结构层）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#06b6d4;strokeWidth=2;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="50" y="940" width="780" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="s-plan-text" value="1. 拆分 stage-ui：按领域拆为 stage-chat-core / stage-avatar-core / stage-memory-core。&#xa;2. 应用层仅依赖 app-shell facade：apps 不再直接触碰 chat.ts / llm.ts 内部细节。&#xa;3. provider 统一走 provider-gateway：隔离模型 SDK 与业务编排。&#xa;4. 存储统一走 memory-repo 接口：本地/远端实现可替换。&#xa;5. stage-pages 只承载页面壳，不再反向依赖编排实现。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="50" y="995" width="1260" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-target-title" value="解耦后项目图（目标结构）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfccb;strokeColor=#65a30d;strokeWidth=2;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="940" width="1210" height="46" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-apps2" value="apps/*\n(stage-web / tamagotchi / pocket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="1000" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s-shell" value="packages/stage-app-shell\n统一 facade / usecases" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="1000" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s-chatcore" value="packages/stage-chat-core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1940" y="1000" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s-avatarcore" value="packages/stage-avatar-core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2140" y="1000" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s-memorycore" value="packages/stage-memory-core" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#06b6d4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2340" y="1000" width="180" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-gateway" value="provider-gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b;strokeWidth=1.8;" vertex="1" parent="1">
+          <mxGeometry x="1940" y="1120" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="s-scenes" value="stage-ui-live2d / stage-ui-three" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#8b5cf6;strokeWidth=1.8;" vertex="1" parent="1">
+          <mxGeometry x="2140" y="1120" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="s-repo" value="memory-repo\n(local / pgvector / cloud)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#0891b2;strokeWidth=1.8;" vertex="1" parent="1">
+          <mxGeometry x="2340" y="1120" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s-e1" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="s-apps2" target="s-shell"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e2" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;" edge="1" parent="1" source="s-shell" target="s-chatcore"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e3" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;" edge="1" parent="1" source="s-shell" target="s-avatarcore"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e4" style="endArrow=block;html=1;strokeColor=#16a34a;strokeWidth=2;" edge="1" parent="1" source="s-shell" target="s-memorycore"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e5" style="endArrow=block;html=1;strokeColor=#f59e0b;strokeWidth=1.8;" edge="1" parent="1" source="s-chatcore" target="s-gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e6" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=1.8;" edge="1" parent="1" source="s-avatarcore" target="s-scenes"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="s-e7" style="endArrow=block;html=1;strokeColor=#0891b2;strokeWidth=1.8;" edge="1" parent="1" source="s-memorycore" target="s-repo"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="airi-runtime" name="第2页-chat-memory-avatar数据流">
+    <mxGraphModel dx="1920" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="rt1" value="AIRI 运行时数据流（chat / memory / avatar）与耦合热区" style="text;html=1;strokeColor=none;fillColor=none;fontStyle=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="580" y="20" width="1460" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend2" value="图例：红色粗线 = 强耦合热点，橙色虚线 = 中耦合，蓝色实线 = 正常数据流" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#fdba74;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1830" y="70" width="700" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="g-input" value="输入层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="140" width="420" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="g-chat" value="聊天编排层（高耦合区）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff1f2;strokeColor=#dc2626;strokeWidth=3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="140" width="760" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="g-avatar" value="角色表现层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="140" width="520" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="g-memory" value="记忆与持久化层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#06b6d4;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1840" y="140" width="700" height="500" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n-vad" value="VAD / ASR / 文本输入\napps/*/pages/index.vue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbf7d0;strokeColor=#16a34a;strokeWidth=1.8;" vertex="1" parent="1">
+          <mxGeometry x="90" y="210" width="340" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n-tools" value="工具与上下文输入\nmods/api/context-bridge.ts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbf7d0;strokeColor=#16a34a;strokeWidth=1.8;" vertex="1" parent="1">
+          <mxGeometry x="90" y="330" width="340" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n-chat" value="chat.ts\nuseChatOrchestratorStore\n组装消息 + 调度 hooks + 流式拼装" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="190" width="320" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="n-session" value="chat/session-store.ts\n会话维护 + 系统提示注入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2.8;" vertex="1" parent="1">
+          <mxGeometry x="890" y="190" width="330" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n-card" value="modules/airi-card.ts\n人设卡 + systemPrompt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2.8;" vertex="1" parent="1">
+          <mxGeometry x="890" y="330" width="330" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n-llm" value="llm.ts\nprovider stream + tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="370" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n-parser" value="llm-marker-parser.ts\nresponse-categoriser.ts\nqueues.ts（情绪/延迟）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="540" y="510" width="680" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n-live2d" value="stage-ui-live2d\n表情 / 动作 / 口型" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddd6fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="230" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n-vrm" value="stage-ui-three\nVRM 场景渲染" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddd6fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1570" y="230" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n-subtitle" value="字幕/界面反馈\nStage.vue + widgets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddd6fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="390" width="440" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n-repo" value="database/repos/*\nstorage.ts\n(IndexedDB/local)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#06b6d4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="220" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n-memory" value="memory-pgvector\n长期记忆后端（当前弱接入）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f97316;strokeWidth=2;strokeDasharray=8 4;" vertex="1" parent="1">
+          <mxGeometry x="2200" y="220" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n-sdk" value="server-sdk / server-runtime\n远端能力与通道" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#06b6d4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="360" width="620" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n-risk" value="耦合热点（建议优先拆）\n1) chat.ts ↔ session-store.ts ↔ airi-card.ts\n2) chat.ts ↔ llm.ts ↔ parser/queues\n3) chat 主链路同时依赖 UI 表现 + 存储 + provider" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="480" width="620" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r1" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="n-vad" target="n-chat"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r2" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="n-tools" target="n-chat"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r3" style="endArrow=block;html=1;strokeColor=#dc2626;strokeWidth=3;" edge="1" parent="1" source="n-chat" target="n-session"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r4" style="endArrow=block;html=1;strokeColor=#dc2626;strokeWidth=3;" edge="1" parent="1" source="n-session" target="n-card"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r5" style="endArrow=block;html=1;strokeColor=#dc2626;strokeWidth=3;" edge="1" parent="1" source="n-chat" target="n-llm"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r6" style="endArrow=block;html=1;strokeColor=#f59e0b;strokeWidth=2.2;" edge="1" parent="1" source="n-llm" target="n-parser"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r7" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="n-parser" target="n-live2d"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r8" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="n-parser" target="n-vrm"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r9" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="n-parser" target="n-subtitle"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r10" style="endArrow=block;html=1;strokeColor=#06b6d4;strokeWidth=2;" edge="1" parent="1" source="n-chat" target="n-repo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r11" style="endArrow=block;html=1;strokeColor=#f97316;strokeWidth=2;dashed=1;" edge="1" parent="1" source="n-chat" target="n-memory"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r12" style="endArrow=block;html=1;strokeColor=#06b6d4;strokeWidth=2;" edge="1" parent="1" source="n-llm" target="n-sdk"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="rt-plan-title" value="最优解耦方案（运行时）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#06b6d4;strokeWidth=2;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="50" y="700" width="780" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-plan-text" value="1. 引入 Event Bus：输入、模型输出、渲染更新全部走事件，不直连 store。&#xa;2. ChatUseCase 只负责领域编排：UI 与存储通过端口接口注入。&#xa;3. MemoryService 独立：extract/write/recall 三条链路独立，可切换本地与向量库。&#xa;4. AvatarEngine 独立消费“已结构化响应”事件，不读取 chat/session 内部状态。&#xa;5. ProviderGateway 独立：llm.ts 从业务层剥离为可替换 adapter。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="50" y="755" width="1260" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rt-target-title" value="解耦后运行时图（目标数据流）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfccb;strokeColor=#65a30d;strokeWidth=2;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="700" width="1210" height="46" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rt-in" value="Input Gateway\n(text/ASR/tools)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbf7d0;strokeColor=#16a34a;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="770" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-bus1" value="Inbound Event Bus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#22c55e;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="770" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-chatcore" value="ChatUseCase\n(纯领域编排)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2.5;" vertex="1" parent="1">
+          <mxGeometry x="1800" y="770" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-gw" value="Provider Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2000" y="770" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-mem" value="Memory Service\n(extract/recall/write)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#06b6d4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2190" y="770" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-bus2" value="Outbound Event Bus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#22c55e;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="890" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-avatar" value="Avatar Engine\n(Live2D/VRM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddd6fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1800" y="890" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-ui" value="UI Presenter\n(subtitle/widgets)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddd6fe;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2000" y="890" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rt-store" value="Storage Adapter\n(local/indexeddb/pgvector)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfeff;strokeColor=#0891b2;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="2190" y="890" width="180" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rt-e1" style="endArrow=block;html=1;strokeColor=#2563eb;strokeWidth=2;" edge="1" parent="1" source="rt-in" target="rt-bus1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e2" style="endArrow=block;html=1;strokeColor=#22c55e;strokeWidth=2;" edge="1" parent="1" source="rt-bus1" target="rt-chatcore"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e3" style="endArrow=block;html=1;strokeColor=#f59e0b;strokeWidth=2;" edge="1" parent="1" source="rt-chatcore" target="rt-gw"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e4" style="endArrow=block;html=1;strokeColor=#06b6d4;strokeWidth=2;" edge="1" parent="1" source="rt-chatcore" target="rt-mem"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e5" style="endArrow=block;html=1;strokeColor=#22c55e;strokeWidth=2;" edge="1" parent="1" source="rt-chatcore" target="rt-bus2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e6" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="rt-bus2" target="rt-avatar"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e7" style="endArrow=block;html=1;strokeColor=#7c3aed;strokeWidth=2;" edge="1" parent="1" source="rt-bus2" target="rt-ui"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="rt-e8" style="endArrow=block;html=1;strokeColor=#0891b2;strokeWidth=2;" edge="1" parent="1" source="rt-mem" target="rt-store"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
