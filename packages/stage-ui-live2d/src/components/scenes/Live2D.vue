@@ -45,9 +45,12 @@ withDefaults(defineProps<{
   live2dMaxFps: 0,
   live2dRenderScale: 2,
 })
-
 // px of movement before a pointer-down is treated as a drag
 const DRAG_THRESHOLD_PX = 5
+// Multiplier so the character follows the pointer more responsively
+const DRAG_SENSITIVITY = 5.0
+const SCALE_MIN = 0.2
+const SCALE_MAX = 5.0
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 const componentStateCanvas = defineModel<'pending' | 'loading' | 'mounted'>('canvasState', { default: 'pending' })
@@ -57,7 +60,21 @@ const live2dCanvasRef = ref<InstanceType<typeof Live2DCanvas>>()
 const live2dModelRef = ref<InstanceType<typeof Live2DModel>>()
 
 const live2d = useLive2d()
-const { position } = storeToRefs(live2d)
+const { position, scale } = storeToRefs(live2d)
+
+// ---- Multi-pointer tracking (shared by drag and pinch-to-zoom) ----
+// Maps pointerId → current client position; populated on pointerdown on the canvas.
+const activePointers = new Map<number, { x: number, y: number }>()
+let pinchStartDistance = 0
+let scaleAtPinchStart = 1
+
+function pinchDistance() {
+  const pts = [...activePointers.values()]
+  if (pts.length < 2)
+    return 0
+  const [a, b] = pts as [{ x: number, y: number }, { x: number, y: number }]
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
 
 // ---- Drag & click state ----
 const isDragging = ref(false)
@@ -65,9 +82,26 @@ const isPointerDown = ref(false)
 const dragStartClient = { x: 0, y: 0 }
 const positionAtDragStart = { x: 0, y: 0 }
 
+// NOTICE: pointerdown is attached directly to the canvas element (not an overlay div)
+// so it fires regardless of which part of the model is clicked — including transparent
+// areas and non-hit-area regions. pointermove/pointerup are on document so dragging
+// continues smoothly even when the pointer leaves the canvas bounds.
 function onPointerDown(event: PointerEvent) {
-  if (event.button !== 0)
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
+  if (activePointers.size >= 2) {
+    // Second finger arrived — switch from drag to pinch-to-zoom
+    isPointerDown.value = false
+    isDragging.value = false
+    pinchStartDistance = pinchDistance()
+    scaleAtPinchStart = scale.value
     return
+  }
+
+  // Single pointer: start drag (mouse requires left button; touch/pen button is always 0)
+  if (event.pointerType === 'mouse' && event.button !== 0)
+    return
+
   isPointerDown.value = true
   isDragging.value = false
   dragStartClient.x = event.clientX
@@ -77,6 +111,16 @@ function onPointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (activePointers.has(event.pointerId))
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
+  // Two-finger pinch-to-zoom takes priority over single-finger drag
+  if (activePointers.size >= 2 && pinchStartDistance > 0) {
+    const dist = pinchDistance()
+    scale.value = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scaleAtPinchStart * (dist / pinchStartDistance)))
+    return
+  }
+
   if (!isPointerDown.value)
     return
 
@@ -97,17 +141,22 @@ function onPointerMove(event: PointerEvent) {
     return
 
   position.value = {
-    x: positionAtDragStart.x + (dx / rect.width) * 100,
-    y: positionAtDragStart.y + (dy / rect.height) * 100,
+    x: positionAtDragStart.x + (dx / rect.width) * 100 * DRAG_SENSITIVITY,
+    y: positionAtDragStart.y + (dy / rect.height) * 100 * DRAG_SENSITIVITY,
   }
 }
 
 function onPointerUp(event: PointerEvent) {
+  activePointers.delete(event.pointerId)
+
+  if (activePointers.size < 2)
+    pinchStartDistance = 0
+
   if (!isPointerDown.value)
     return
 
   if (!isDragging.value) {
-    // Treat as click — run hit test in model coordinates
+    // Treat as click/tap — run hit test in model coordinates
     const canvas = live2dCanvasRef.value?.canvasElement()
     if (canvas && live2dModelRef.value) {
       const rect = canvas.getBoundingClientRect()
@@ -122,24 +171,38 @@ function onPointerUp(event: PointerEvent) {
   isDragging.value = false
 }
 
-function onPointerCancel() {
+function onPointerCancel(event: PointerEvent) {
+  activePointers.delete(event.pointerId)
+  if (activePointers.size < 2)
+    pinchStartDistance = 0
   isPointerDown.value = false
   isDragging.value = false
 }
 
-// NOTICE: pointerdown is attached directly to the canvas element (not an overlay div)
-// so it fires regardless of which part of the model is clicked — including transparent
-// areas and non-hit-area regions. pointermove/pointerup are on document so dragging
-// continues smoothly even when the pointer leaves the canvas bounds.
+// ---- Mouse-wheel zoom ----
+function onWheel(event: WheelEvent) {
+  // NOTICE: preventDefault stops the page from scrolling while zooming the model.
+  // The listener is registered as non-passive (see canvasEl watcher) to allow this call.
+  event.preventDefault()
+  const delta = -event.deltaY * 0.001
+  scale.value = Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale.value + delta))
+}
+
 const canvasEl = computed(() => live2dCanvasRef.value?.canvasElement())
 
 watch(canvasEl, (el, prev) => {
   prev?.removeEventListener('pointerdown', onPointerDown)
-  el?.addEventListener('pointerdown', onPointerDown, { passive: true })
+  prev?.removeEventListener('wheel', onWheel)
+  if (el) {
+    el.addEventListener('pointerdown', onPointerDown, { passive: true })
+    // NOTICE: passive:false required so onWheel can call preventDefault() to suppress page scroll.
+    el.addEventListener('wheel', onWheel, { passive: false })
+  }
 })
 
 onUnmounted(() => {
   canvasEl.value?.removeEventListener('pointerdown', onPointerDown)
+  canvasEl.value?.removeEventListener('wheel', onWheel)
 })
 
 useEventListener(document, 'pointermove', onPointerMove, { passive: true })

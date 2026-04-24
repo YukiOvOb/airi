@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChatAssistantMessage, ChatHistoryItem, ContextMessage } from '../../../../types/chat'
 
-import { computed, provide, ref } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ChatAssistantItem from './assistant-item.vue'
@@ -65,10 +65,22 @@ const renderMessages = computed<ChatHistoryItem[]>(() => {
   return [...props.messages, streaming.value]
 })
 
-useChatHistoryScroll({
+const { scrollToBottom, isFollowingTail } = useChatHistoryScroll({
   containerRef: chatHistoryRef,
   messages: renderMessages,
   getKey: getChatHistoryItemKey,
+})
+
+// NOTICE: renderMessages is a cached computed whose deps (sending, streamingTs, messages)
+// don't change while a token is being appended, so the composable's shallow watcher never
+// fires mid-stream. Watch the raw content directly and keep the viewport at the tail for
+// as long as the user hasn't scrolled away.
+watch(() => props.streamingMessage?.content, async () => {
+  if (!props.sending)
+    return
+  await nextTick()
+  if (isFollowingTail.value)
+    scrollToBottom()
 })
 
 function emitCopyMessage(message: ChatHistoryItem, index: number) {

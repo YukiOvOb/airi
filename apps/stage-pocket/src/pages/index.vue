@@ -25,9 +25,10 @@ import { useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
 import { breakpointsTailwind, useBreakpoints, useMouse } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
-export default { name: 'IndexScenePage' }
 
 import WebSocketStatusButton from '../components/websocket-status-button.vue'
+
+export default { name: 'IndexScenePage' }
 
 const paused = ref(false)
 

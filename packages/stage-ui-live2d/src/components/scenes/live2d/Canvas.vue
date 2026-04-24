@@ -74,6 +74,9 @@ async function initLive2DPixiStage(parent: HTMLDivElement) {
   pixiAppCanvas.value.style.height = '100%'
   pixiAppCanvas.value.style.objectFit = 'cover'
   pixiAppCanvas.value.style.display = 'block'
+  // NOTICE: touch-action:none prevents the browser from consuming touch events for
+  // its own scroll/pinch gestures, so pointer events fire reliably on the canvas on mobile.
+  pixiAppCanvas.value.style.touchAction = 'none'
 
   parent.appendChild(pixiApp.value.view)
 
