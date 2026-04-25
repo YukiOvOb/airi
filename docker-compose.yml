@@ -1,0 +1,28 @@
+services:
+  airi-server:
+    image: ghcr.io/yukiovob/airi/server:latest
+    container_name: airi-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env.server
+    ports:
+      - '3000:3000'
+    networks:
+      - airi-network
+
+  airi-web:
+    image: ghcr.io/yukiovob/airi/web:latest
+    container_name: airi-web
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    depends_on:
+      - airi-server
+    networks:
+      - airi-network
+
+networks:
+  airi-network:
+    driver: bridge
