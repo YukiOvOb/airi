@@ -15,6 +15,7 @@ import { routes } from 'vue-router/auto-routes'
 
 import App from './App.vue'
 
+import { setupDatabase } from './composables/use-database-setup'
 import { i18n } from './modules/i18n'
 
 import '@proj-airi/font-cjkfonts-allseto/index.css'
@@ -48,6 +49,10 @@ router.afterEach(() => {
 window.addEventListener('unhandledrejection', (event) => {
   console.warn('Unhandled rejection:', event.reason)
 })
+
+// Register platform-specific DB adapter before any store uses it.
+// init() runs async in the background; repos await it automatically.
+setupDatabase().catch(console.error)
 
 createApp(App)
   .use(MotionPlugin)

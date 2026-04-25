@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import Tres from '@tresjs/core'
 
 import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
+import { registerDatabaseAdapter } from '@proj-airi/stage-ui/database/registry'
 import { MotionPlugin } from '@vueuse/motion'
 import { createPinia } from 'pinia'
 import { setupLayouts } from 'virtual:generated-layouts'
@@ -13,6 +14,7 @@ import { routes } from 'vue-router/auto-routes'
 
 import App from './App.vue'
 
+import { IpcDatabaseAdapter } from './database/ipc-adapter'
 import { i18n } from './modules/i18n'
 
 import '@unocss/reset/tailwind.css'
@@ -42,6 +44,9 @@ const router = createRouter({
   // TODO: vite-plugin-vue-layouts is long deprecated, replace with another layout solution
   routes: setupLayouts(routes as RouteRecordRaw[]),
 })
+
+// Register better-sqlite3 adapter (runs in main process via IPC).
+registerDatabaseAdapter(new IpcDatabaseAdapter())
 
 createApp(App)
   .use(MotionPlugin)

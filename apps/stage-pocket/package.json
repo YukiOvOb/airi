@@ -20,8 +20,10 @@
     "dev:android": "cap-vite -- android"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "catalog:",
     "@capacitor/android": "catalog:",
     "@capacitor/core": "catalog:",
+    "@capacitor/filesystem": "catalog:",
     "@capacitor/ios": "catalog:",
     "@capacitor/local-notifications": "catalog:",
     "@date-fns/utc": "^2.1.1",

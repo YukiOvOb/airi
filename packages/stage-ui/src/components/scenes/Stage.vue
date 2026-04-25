@@ -6,6 +6,7 @@ import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { UnElevenLabsOptions } from 'unspeech'
 
 import type { EmotionPayload } from '../../constants/emotions'
+import type { CharacterRenderDirective } from '../../stores/character'
 
 import { drizzle } from '@proj-airi/drizzle-duckdb-wasm'
 import { getImportUrlBundles } from '@proj-airi/drizzle-duckdb-wasm/bundles/import-url-browser'
@@ -27,8 +28,8 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } f
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { useAuthProviderSync } from '../../composables/use-auth-provider-sync'
 import { llmInferenceEndToken } from '../../constants'
-import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
+import { useCharacterRuntimeStore } from '../../stores/character'
 import { useChatOrchestratorStore } from '../../stores/chat'
 import { useAiriCardStore } from '../../stores/modules'
 import { useSpeechStore } from '../../stores/modules/speech'
@@ -82,6 +83,7 @@ const chatHookCleanups: Array<() => void> = []
 
 const providersStore = useProvidersStore()
 useAuthProviderSync()
+const characterRuntimeStore = useCharacterRuntimeStore()
 const live2dStore = useLive2d()
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
@@ -124,6 +126,20 @@ const speechRuntimeStore = useSpeechRuntimeStore()
 
 const { currentMotion } = storeToRefs(useLive2d())
 
+async function applyCharacterRenderDirective(directive: CharacterRenderDirective) {
+  if (stageModelRenderer.value === 'vrm') {
+    if (!directive.vrmExpression)
+      return
+
+    await vrmViewerRef.value?.setExpression(directive.vrmExpression, directive.intensity)
+    return
+  }
+
+  if (stageModelRenderer.value === 'live2d' && directive.live2dMotionGroup) {
+    currentMotion.value = { group: directive.live2dMotionGroup }
+  }
+}
+
 watch(emotionTestData, (msg) => {
   if (msg?.type === 'set-motion')
     currentMotion.value = { group: msg.group, index: msg.index }
@@ -132,17 +148,8 @@ watch(emotionTestData, (msg) => {
 const emotionsQueue = createQueue<EmotionPayload>({
   handlers: [
     async (ctx) => {
-      if (stageModelRenderer.value === 'vrm') {
-        // console.debug('VRM emotion anime: ', ctx.data)
-        const value = EMOTION_VRMExpressionName_value[ctx.data.name]
-        if (!value)
-          return
-
-        await vrmViewerRef.value!.setExpression(value, ctx.data.intensity)
-      }
-      else if (stageModelRenderer.value === 'live2d') {
-        currentMotion.value = { group: EMOTION_EmotionMotionName_value[ctx.data.name] }
-      }
+      const directive = characterRuntimeStore.applyEmotionPayload(ctx.data)
+      await applyCharacterRenderDirective(directive)
     },
   ],
 })
@@ -482,8 +489,9 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
   })
 }))
 
-chatHookCleanups.push(onBeforeSend(async () => {
-  currentMotion.value = { group: EmotionThinkMotionName }
+chatHookCleanups.push(onBeforeSend(async (message) => {
+  const directive = characterRuntimeStore.onBeforeSend(message)
+  await applyCharacterRenderDirective(directive)
 }))
 
 chatHookCleanups.push(onTokenLiteral(async (literal) => {
@@ -493,6 +501,10 @@ chatHookCleanups.push(onTokenLiteral(async (literal) => {
 chatHookCleanups.push(onTokenSpecial(async (special) => {
   // console.debug('Stage received special token:', special)
   currentChatIntent?.writeSpecial(special)
+
+  const directive = characterRuntimeStore.applySpecialToken(special)
+  if (directive)
+    await applyCharacterRenderDirective(directive)
 }))
 
 chatHookCleanups.push(onStreamEnd(async () => {
@@ -501,6 +513,7 @@ chatHookCleanups.push(onStreamEnd(async () => {
 }))
 
 chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
+  characterRuntimeStore.onAssistantResponseEnd(_message)
   currentChatIntent?.end()
   currentChatIntent = null
   // const res = await embed({

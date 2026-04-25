@@ -25,6 +25,7 @@ import { setElectronMainDirname } from './libs/electron/location'
 import { createI18n } from './libs/i18n'
 import { createWindowAuthManagerService } from './services/airi/auth'
 import { setupServerChannel } from './services/airi/channel-server'
+import { setupDatabaseService } from './services/airi/database'
 import { setupMcpStdioManager } from './services/airi/mcp-servers'
 import { setupPluginHost } from './services/airi/plugins'
 import { setupAutoUpdater } from './services/electron/auto-updater'
@@ -98,6 +99,10 @@ app.whenReady().then(async () => {
   })
 
   injeca.setLogger(createLoggLogger(useLogg('injeca').useGlobalConfig()))
+
+  // Set up better-sqlite3 database and register ipcMain handlers before any
+  // renderer window is opened.
+  setupDatabaseService()
 
   const appConfig = injeca.provide('configs:app', () => createGlobalAppConfig())
   const electronApp = injeca.provide('host:electron:app', () => app)

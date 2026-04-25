@@ -2,7 +2,9 @@
 import { OnboardingDialog, OnboardingStepAnalyticsNotice, ToasterRoot } from '@proj-airi/stage-ui/components'
 import { isPosthogAvailableInBuild, useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
+import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models'
+import { useMemoryStore } from '@proj-airi/stage-ui/stores/memory'
 import { useModsServerChannelStore } from '@proj-airi/stage-ui/stores/mods/api/channel-server'
 import { useContextBridgeStore } from '@proj-airi/stage-ui/stores/mods/api/context-bridge'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
@@ -26,6 +28,8 @@ const displayModelsStore = useDisplayModelsStore()
 const settingsStore = useSettings()
 const settings = storeToRefs(settingsStore)
 const onboardingStore = useOnboardingStore()
+const chatSessionStore = useChatSessionStore()
+const memoryStore = useMemoryStore()
 const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const settingsAudioDeviceStore = useSettingsAudioDevice()
@@ -78,6 +82,8 @@ onMounted(async () => {
     onboardingStore.showingSetup = true
   }
 
+  await chatSessionStore.initialize().catch(err => console.error('Failed to initialize chat session:', err))
+  await memoryStore.init().catch(err => console.error('Failed to initialize memory store:', err))
   await serverChannelStore.initialize({
     possibleEvents: ['ui:configure'],
     websocketConstructor: getHostWebSocketConstructor(),

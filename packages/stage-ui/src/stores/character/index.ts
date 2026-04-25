@@ -10,6 +10,7 @@ import { useSpeechRuntimeStore } from '../speech-runtime'
 
 export * from './notebook'
 export * from './orchestrator'
+export * from './runtime'
 
 export interface CharacterSparkNotifyReaction {
   id: string

@@ -6,24 +6,27 @@ import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, Streamin
 import type { StreamEvent, StreamOptions } from './llm'
 
 import { createQueue } from '@proj-airi/stream-kit'
+import { generateText } from '@xsai/generate-text'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
-import { ref, toRaw } from 'vue'
+import { ref, toRaw, watch } from 'vue'
 
 import { useAnalytics } from '../composables'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
 import { buildContextPromptMessage } from './chat/context-prompt'
 // DISABLED: createMinecraftContext removed from active imports; re-enable with full import when needed
-import { createDatetimeContext } from './chat/context-providers'
+import { createDatetimeContext, createMemoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
 import { useContextObservabilityStore } from './devtools/context-observability'
 import { useLLM } from './llm'
+import { useMemoryStore } from './memory'
 import { useAiriCardStore } from './modules/airi-card'
 import { useConsciousnessStore } from './modules/consciousness'
+import { useProvidersStore } from './providers'
 
 interface SendOptions {
   model: string
@@ -65,7 +68,7 @@ export interface QueuedSendSnapshot {
 export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const llmStore = useLLM()
   const consciousnessStore = useConsciousnessStore()
-  const { activeProvider } = storeToRefs(consciousnessStore)
+  const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
   const { trackFirstMessage } = useAnalytics()
 
   const chatSession = useChatSessionStore()
@@ -73,6 +76,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const chatContext = useChatContextStore()
   const contextObservability = useContextObservabilityStore()
   const airiCardStore = useAiriCardStore()
+  const providersStore = useProvidersStore()
+  const memoryStore = useMemoryStore()
   const { systemPrompt: liveSystemPrompt } = storeToRefs(airiCardStore)
   const { activeSessionId } = storeToRefs(chatSession)
   const { streamingMessage } = storeToRefs(chatStream)
@@ -116,6 +121,60 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     pendingQueuedSendCount.value = pendingQueuedSends.value.length
   })
 
+  // When the active session changes, extract memorable information from the
+  // outgoing session in the background while still in the foreground.
+  watch(activeSessionId, (newId, oldId) => {
+    if (!oldId || !newId || oldId === newId)
+      return
+
+    const oldMessages = chatSession.sessionMessages[oldId]
+    if (!oldMessages || oldMessages.length < 3)
+      return
+
+    console.log('[ChatOrchestrator] Session switch detected, triggering memory extraction:', { oldId, newId, messageCount: oldMessages.length })
+
+    // Build a simple generateText wrapper using the current consciousness provider.
+    void (async () => {
+      try {
+        const chatProvider = await providersStore.getProviderInstance<ChatProvider>(activeProvider.value)
+        if (!chatProvider) {
+          console.warn('[ChatOrchestrator] No chat provider available for memory extraction')
+          return
+        }
+
+        const model = activeModel.value
+        if (!model) {
+          console.warn('[ChatOrchestrator] No model configured for memory extraction')
+          return
+        }
+
+        console.log('[ChatOrchestrator] Starting memory extraction with model:', model)
+
+        const chatConfig = chatProvider.chat(model)
+
+        const genText = async (prompt: string): Promise<string> => {
+          const result = await generateText({
+            ...chatConfig,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 2000,
+          })
+          return result.text ?? ''
+        }
+
+        const extractable = oldMessages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .map(m => ({ role: m.role as string, content: typeof m.content === 'string' ? m.content : '' }))
+
+        await memoryStore.extractFromConversation(extractable, genText)
+        console.log('[ChatOrchestrator] Memory extraction completed')
+      }
+      catch (error) {
+        console.error('[ChatOrchestrator] Memory extraction failed:', error)
+        // Extraction is best-effort; never interrupt the session switch.
+      }
+    })()
+  })
+
   async function performSend(
     sendingMessage: string,
     options: SendOptions,
@@ -129,6 +188,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
+    // Inject persistent memory context (no-op when no memories exist)
+    const memoryCtx = createMemoryContext()
+    if (memoryCtx)
+      chatContext.ingestContextMessage(memoryCtx)
     // DISABLED: Minecraft context injection disabled; re-enable the import and these lines to restore
     // const minecraftContext = createMinecraftContext()
     // if (minecraftContext)

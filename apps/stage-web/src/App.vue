@@ -4,6 +4,7 @@ import { isPosthogAvailableInBuild, useSharedAnalyticsStore } from '@proj-airi/s
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models'
+import { useMemoryStore } from '@proj-airi/stage-ui/stores/memory'
 import { useModsServerChannelStore } from '@proj-airi/stage-ui/stores/mods/api/channel-server'
 import { useContextBridgeStore } from '@proj-airi/stage-ui/stores/mods/api/context-bridge'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
@@ -30,6 +31,7 @@ const settingsStore = useSettings()
 const settings = storeToRefs(settingsStore)
 const onboardingStore = useOnboardingStore()
 const chatSessionStore = useChatSessionStore()
+const memoryStore = useMemoryStore()
 const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const settingsAudioDeviceStore = useSettingsAudioDevice()
@@ -89,6 +91,7 @@ onMounted(async () => {
   }
 
   await chatSessionStore.initialize()
+  await memoryStore.init().catch(err => console.error('[App] memoryStore.init failed:', err))
   await serverChannelStore.initialize({ possibleEvents: ['ui:configure'] }).catch(err => console.error('Failed to initialize Mods Server Channel in App.vue:', err))
   contextBridgeStore.initialize()
   characterOrchestratorStore.initialize()
