@@ -237,8 +237,33 @@ pages:
     upload: Upload
     upload_desc: Click or drag file to upload
   memory:
-    description: Where memories got stored, and organized
+    description: Manage beautiful memories shared with your character
     title: Memory
+    today: Today
+    yesterday: Yesterday
+    allTypes: All Types
+    typeUser: User Info
+    typeFeedback: Feedback
+    typeProject: Project Context
+    typeReference: References
+    searchPlaceholder: Search memories...
+    noResults: No matching memories found
+    noMemories: No memories yet
+    delete: Delete
+    refresh: Refresh
+    totalCount: '{count} memories total'
+    detail:
+      title: Memory Detail
+      back: Back to List
+      deleteConfirm: Are you sure you want to delete this memory?
+      type: Type
+      createdAt: Created
+      content: Content
+      tags: Tags
+      noTags: No tags
+      embeddingStatus: Index Status
+      indexed: Indexed
+      notIndexed: Not Indexed
   data:
     title: Data
     description: Manage stored AIRI data, exports, and resets
@@ -449,6 +474,9 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
+    memory:
+      description: Configure semantic memory search using text embeddings
+      title: Memory
     memory-long-term:
       description: Long-term memory specific settings and management
       title: Long-Term Memory
@@ -860,6 +888,9 @@ pages:
       openai:
         description: openai.com
         title: OpenAI
+      openai-embed:
+        description: OpenAI text embedding models for semantic search
+        title: OpenAI Embeddings
       azure-openai:
         description: Azure OpenAI API
         title: Azure OpenAI

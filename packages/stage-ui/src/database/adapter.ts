@@ -8,6 +8,8 @@ export interface MemoryRecord {
   type: MemoryType
   content: string
   updatedAt: number // unix ms
+  /** Optional embedding vector for semantic search. Text dimension from model (e.g. 1536 for text-embedding-3-small). */
+  embedding?: number[]
 }
 
 export interface IMemoriesAdapter {

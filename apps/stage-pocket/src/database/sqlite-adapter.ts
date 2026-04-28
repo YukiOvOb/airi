@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS memories (
   description  TEXT NOT NULL,
   type         TEXT NOT NULL CHECK(type IN ('user','feedback','project','reference')),
   content      TEXT NOT NULL,
-  updated_at   INTEGER NOT NULL
+  updated_at   INTEGER NOT NULL,
+  embedding    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_memories_char ON memories(character_id);
 
@@ -47,6 +48,7 @@ class SQLiteMemoriesAdapter implements IMemoriesAdapter {
       type: r.type as MemoryRecord['type'],
       content: r.content,
       updatedAt: r.updatedAt,
+      embedding: r.embedding ? JSON.parse(r.embedding) : undefined,
     })).reverse() // newest first
   }
 
@@ -66,6 +68,7 @@ class SQLiteMemoriesAdapter implements IMemoriesAdapter {
       type: r.type as MemoryRecord['type'],
       content: r.content,
       updatedAt: r.updatedAt,
+      embedding: r.embedding ? JSON.parse(r.embedding) : undefined,
     }
   }
 
@@ -80,6 +83,7 @@ class SQLiteMemoriesAdapter implements IMemoriesAdapter {
         type: record.type,
         content: record.content,
         updatedAt: record.updatedAt,
+        embedding: record.embedding ? JSON.stringify(record.embedding) : null,
       })
       .onConflictDoUpdate({
         target: memoriesTable.id,
@@ -89,6 +93,7 @@ class SQLiteMemoriesAdapter implements IMemoriesAdapter {
           type: record.type,
           content: record.content,
           updatedAt: record.updatedAt,
+          embedding: record.embedding ? JSON.stringify(record.embedding) : null,
         },
       })
   }

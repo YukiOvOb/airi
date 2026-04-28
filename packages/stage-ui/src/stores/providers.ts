@@ -2199,6 +2199,10 @@ export const useProvidersStore = defineStore('providers', () => {
     return availableProvidersMetadata.value.filter(metadata => metadata.category === 'transcription')
   })
 
+  const allEmbedProvidersMetadata = computed(() => {
+    return availableProvidersMetadata.value.filter(metadata => metadata.category === 'embed' || metadata.tasks?.includes('embeddings'))
+  })
+
   const configuredChatProvidersMetadata = computed(() => {
     return allChatProvidersMetadata.value.filter(metadata => configuredProviders.value[metadata.id])
   })
@@ -2209,6 +2213,10 @@ export const useProvidersStore = defineStore('providers', () => {
 
   const configuredTranscriptionProvidersMetadata = computed(() => {
     return allAudioTranscriptionProvidersMetadata.value.filter(metadata => configuredProviders.value[metadata.id])
+  })
+
+  const configuredEmbedProvidersMetadata = computed(() => {
+    return allEmbedProvidersMetadata.value.filter(metadata => configuredProviders.value[metadata.id])
   })
 
   function isProviderConfigDirty(providerId: string) {
@@ -2238,6 +2246,10 @@ export const useProvidersStore = defineStore('providers', () => {
 
   const persistedTranscriptionProvidersMetadata = computed(() => {
     return persistedProvidersMetadata.value.filter(metadata => metadata.category === 'transcription')
+  })
+
+  const persistedEmbedProvidersMetadata = computed(() => {
+    return persistedProvidersMetadata.value.filter(metadata => metadata.category === 'embed' || metadata.tasks?.includes('embeddings'))
   })
 
   function getProviderConfig(providerId: string) {
@@ -2276,12 +2288,15 @@ export const useProvidersStore = defineStore('providers', () => {
     allChatProvidersMetadata,
     allAudioSpeechProvidersMetadata,
     allAudioTranscriptionProvidersMetadata,
+    allEmbedProvidersMetadata,
     configuredChatProvidersMetadata,
     configuredSpeechProvidersMetadata,
     configuredTranscriptionProvidersMetadata,
+    configuredEmbedProvidersMetadata,
     persistedProvidersMetadata,
     persistedChatProvidersMetadata,
     persistedSpeechProvidersMetadata,
     persistedTranscriptionProvidersMetadata,
+    persistedEmbedProvidersMetadata,
   }
 })

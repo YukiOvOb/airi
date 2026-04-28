@@ -16,6 +16,7 @@ const {
   allChatProvidersMetadata,
   allAudioSpeechProvidersMetadata,
   allAudioTranscriptionProvidersMetadata,
+  allEmbedProvidersMetadata,
 } = storeToRefs(providersStore)
 
 const providerBlocksConfig = [
@@ -39,6 +40,13 @@ const providerBlocksConfig = [
     title: 'Transcription',
     description: 'Transcription (speech-to-text) model providers. e.g. Whisper.cpp, OpenAI, Azure Speech',
     providersRef: allAudioTranscriptionProvidersMetadata,
+  },
+  {
+    id: 'embedding',
+    icon: 'i-solar:diplomama-seal-bold-duotone',
+    title: 'Embedding',
+    description: 'Text embedding models for semantic memory search. e.g. OpenAI text-embedding-3-small',
+    providersRef: allEmbedProvidersMetadata,
   },
 ]
 

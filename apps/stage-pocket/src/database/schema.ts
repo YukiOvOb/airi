@@ -9,6 +9,8 @@ export const memoriesTable = sqliteTable('memories', {
   type: text('type', { enum: ['user', 'feedback', 'project', 'reference'] }).notNull(),
   content: text('content').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  /** Embedding vector stored as JSON array string (e.g. "[0.1, -0.2, ...]"). NULL for existing records without embedding. */
+  embedding: text('embedding').$type<string | null>(),
 })
 
 export const memoryIndexTable = sqliteTable('memory_index', {

@@ -19,6 +19,8 @@ const memoriesTable = sqliteTable('memories', {
   type: text('type', { enum: ['user', 'feedback', 'project', 'reference'] }).notNull(),
   content: text('content').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  /** Embedding vector stored as JSON array string. NULL for existing records. */
+  embedding: text('embedding').$type<string | null>(),
 })
 
 const memoryIndexTable = sqliteTable('memory_index', {
@@ -56,7 +58,8 @@ export function setupDatabaseService(): void {
       description  TEXT NOT NULL,
       type         TEXT NOT NULL CHECK(type IN ('user','feedback','project','reference')),
       content      TEXT NOT NULL,
-      updated_at   INTEGER NOT NULL
+      updated_at   INTEGER NOT NULL,
+      embedding    TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_memories_char ON memories(character_id);
 
@@ -71,15 +74,35 @@ export function setupDatabaseService(): void {
 
   // Register IPC handlers
   ipcMain.handle(DB_IPC.MEMORIES_LIST, async (_, characterId: string) => {
-    return db.select().from(memoriesTable).where(eq(memoriesTable.characterId, characterId)).orderBy(memoriesTable.updatedAt).all().reverse()
+    const rows = db.select().from(memoriesTable).where(eq(memoriesTable.characterId, characterId)).orderBy(memoriesTable.updatedAt).all()
+    return rows.map(r => ({
+      ...r,
+      embedding: r.embedding ? JSON.parse(r.embedding) : undefined,
+    })).reverse()
   })
 
   ipcMain.handle(DB_IPC.MEMORIES_GET, async (_, id: string) => {
-    return db.select().from(memoriesTable).where(eq(memoriesTable.id, id)).get() ?? null
+    const row = db.select().from(memoriesTable).where(eq(memoriesTable.id, id)).get()
+    if (!row)
+      return null
+    return {
+      ...row,
+      embedding: row.embedding ? JSON.parse(row.embedding) : undefined,
+    }
   })
 
   ipcMain.handle(DB_IPC.MEMORIES_UPSERT, async (_, record: MemoryRecord) => {
-    db.insert(memoriesTable).values(record).onConflictDoUpdate({
+    const values = {
+      id: record.id,
+      characterId: record.characterId,
+      name: record.name,
+      description: record.description,
+      type: record.type,
+      content: record.content,
+      updatedAt: record.updatedAt,
+      embedding: record.embedding ? JSON.stringify(record.embedding) : null,
+    }
+    db.insert(memoriesTable).values(values).onConflictDoUpdate({
       target: memoriesTable.id,
       set: {
         name: record.name,
@@ -87,6 +110,7 @@ export function setupDatabaseService(): void {
         type: record.type,
         content: record.content,
         updatedAt: record.updatedAt,
+        embedding: record.embedding ? JSON.stringify(record.embedding) : null,
       },
     }).run()
   })

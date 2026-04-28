@@ -1,14 +1,19 @@
+import type { EmbedProvider } from '@xsai-ext/providers/utils'
+
 import type { MemoryRecord, MemoryType } from '../../database/adapter'
 
+import { embed } from '@xsai/embed'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { memoriesRepo } from '../../database/repos/memories.repo'
 import { useAiriCardStore } from '../modules/airi-card'
+import { useProvidersStore } from '../providers'
 
 const MAX_INDEX_LINES = 200
 const MAX_INDEX_BYTES = 25_000
+const TOP_K_MEMORIES = 5 // Number of relevant memories to retrieve
 
 // Memory store debug logger
 const DEBUG = import.meta.env.DEV || localStorage.getItem('debug:memory') === 'true'
@@ -25,6 +30,7 @@ export { type MemoryRecord, type MemoryType }
 
 export const useMemoryStore = defineStore('memory', () => {
   const { activeCardId } = storeToRefs(useAiriCardStore())
+  const providersStore = useProvidersStore()
 
   const records = ref<MemoryRecord[]>([])
   const indexContent = ref('')
@@ -48,6 +54,131 @@ export const useMemoryStore = defineStore('memory', () => {
     if (d === 1)
       return '（昨天更新，如涉及具体状态请核实）'
     return `（${d} 天前更新，如涉及具体状态请核实）`
+  }
+
+  // ── Embedding Support (decoupled - optional feature) ───────────────────────
+
+  /**
+   * Cosine similarity between two vectors. Returns -1 to 1, where 1 is identical.
+   */
+  function cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length)
+      return 0
+    let dotProduct = 0
+    let normA = 0
+    let normB = 0
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i]
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
+    }
+    if (normA === 0 || normB === 0)
+      return 0
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+  }
+
+  /**
+   * Generate embedding for text using the first configured embedding provider.
+   * Returns null if no provider is configured or on error (decoupled behavior).
+   */
+  async function generateEmbedding(text: string): Promise<number[] | null> {
+    // Get the first configured embedding provider from providers store
+    const configuredEmbedProviders = providersStore.persistedEmbedProvidersMetadata
+    if (!configuredEmbedProviders || configuredEmbedProviders.length === 0) {
+      logDebug('generateEmbedding: no embedding provider configured, skipping')
+      return null
+    }
+
+    const providerId = configuredEmbedProviders[0].id
+    const models = providersStore.getModelsForProvider(providerId)
+    if (!models || models.length === 0) {
+      logDebug('generateEmbedding: no models available for provider:', providerId)
+      return null
+    }
+
+    const modelId = models[0].id
+
+    try {
+      const provider = await providersStore.getProviderInstance<EmbedProvider>(providerId)
+      if (!provider) {
+        logDebug('generateEmbedding: provider not found:', providerId)
+        return null
+      }
+
+      const embedConfig = provider.embed(modelId)
+      const result = await embed({
+        ...embedConfig,
+        input: text,
+      })
+
+      logDebug('generateEmbedding: generated embedding with', result.embedding.length, 'dimensions')
+      return result.embedding
+    }
+    catch (error) {
+      logError('generateEmbedding: failed', error)
+      // Embedding failure should not block memory operations (decoupled)
+      return null
+    }
+  }
+
+  /**
+   * Get current embedding configuration status (for UI display).
+   */
+  function getEmbeddingConfig(): { configured: boolean, providerId?: string, model?: string } {
+    const configuredEmbedProviders = providersStore.persistedEmbedProvidersMetadata
+    if (!configuredEmbedProviders || configuredEmbedProviders.length === 0) {
+      return { configured: false }
+    }
+
+    const providerId = configuredEmbedProviders[0].id
+    const models = providersStore.getModelsForProvider(providerId)
+    const model = models?.[0]
+
+    return {
+      configured: true,
+      providerId,
+      model: model?.id,
+    }
+  }
+
+  /**
+   * Find memories semantically similar to the query using embedding search.
+   * Returns top-K most relevant memories. Falls back to empty array if:
+   * - No embedding provider configured
+   * - No memories have embeddings
+   * - Query embedding generation fails
+   */
+  async function findRelevantMemories(query: string, k: number = TOP_K_MEMORIES): Promise<MemoryRecord[]> {
+    const config = getEmbeddingConfig()
+    if (!config.configured) {
+      logDebug('findRelevantMemories: no embedding provider configured')
+      return []
+    }
+
+    const memoriesWithEmbedding = records.value.filter(r => r.embedding && r.embedding.length > 0)
+    if (memoriesWithEmbedding.length === 0) {
+      logDebug('findRelevantMemories: no memories with embeddings')
+      return []
+    }
+
+    const queryEmbedding = await generateEmbedding(query)
+    if (!queryEmbedding) {
+      logDebug('findRelevantMemories: failed to generate query embedding')
+      return []
+    }
+
+    // Score all memories by similarity
+    const scored = memoriesWithEmbedding.map(memory => ({
+      memory,
+      similarity: cosineSimilarity(queryEmbedding, memory.embedding!),
+    }))
+
+    // Sort by similarity descending and take top-K
+    scored.sort((a, b) => b.similarity - a.similarity)
+
+    const topK = scored.slice(0, k).map(s => s.memory)
+    logDebug('findRelevantMemories: returning', topK.length, 'memories for query:', query.substring(0, 50))
+    return topK
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -92,7 +223,15 @@ export const useMemoryStore = defineStore('memory', () => {
     logDebug('upsertMemory:', input.type, input.name)
 
     try {
-      const saved = await memoriesRepo.upsert({ ...input, characterId: charId })
+      // Generate embedding if provider is configured (decoupled - failures don't block)
+      let embedding: number[] | undefined
+      const config = getEmbeddingConfig()
+      if (config.configured) {
+        const textToEmbed = `${input.name}\n${input.description}\n${input.content}`
+        embedding = await generateEmbedding(textToEmbed) || undefined
+      }
+
+      const saved = await memoriesRepo.upsert({ ...input, characterId: charId, embedding })
       const idx = records.value.findIndex(r => r.id === saved.id)
       if (idx >= 0) {
         records.value[idx] = saved
@@ -321,8 +460,12 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
     init,
     upsertMemory,
     deleteMemory,
+    deleteRecord: deleteMemory,
+    loadRecords: init,
     buildMemoryPrompt,
     extractFromConversation,
+    findRelevantMemories,
+    getEmbeddingConfig,
     ageDays,
     freshnessNote,
   }

@@ -21,7 +21,7 @@
 
 ### 四类记忆分类法（核心设计）
 
-每个记忆文件带 frontmatter：
+每个记忆文件带 front matter：
 
 ```markdown
 ---

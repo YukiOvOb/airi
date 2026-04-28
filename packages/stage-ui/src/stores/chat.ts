@@ -189,7 +189,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
     // Inject persistent memory context (no-op when no memories exist)
-    const memoryCtx = createMemoryContext()
+    // Uses embedding search when available and memory count is high (decoupled feature)
+    const memoryCtx = await createMemoryContext({ latestUserMessage: sendingMessage })
     if (memoryCtx)
       chatContext.ingestContextMessage(memoryCtx)
     // DISABLED: Minecraft context injection disabled; re-enable the import and these lines to restore

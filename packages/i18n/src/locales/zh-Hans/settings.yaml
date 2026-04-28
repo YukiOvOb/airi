@@ -225,8 +225,33 @@ pages:
     upload: 上传
     upload_desc: 点击或拖拽文件到此处上传
   memory:
-    description: 存放记忆的地方，以及策略
+    description: 管理角色与你留下的美好回忆
     title: 记忆体
+    today: 今天
+    yesterday: 昨天
+    allTypes: 全部类型
+    typeUser: 用户信息
+    typeFeedback: 行为偏好
+    typeProject: 项目背景
+    typeReference: 参考资源
+    searchPlaceholder: 搜索记忆...
+    noResults: 没有找到匹配的记忆
+    noMemories: 暂无记忆
+    delete: 删除
+    refresh: 刷新
+    totalCount: '共 {count} 条记忆'
+    detail:
+      title: 记忆详情
+      back: 返回列表
+      deleteConfirm: 确定要删除这条记忆吗？
+      type: 类型
+      createdAt: 创建时间
+      content: 内容
+      tags: 标签
+      noTags: 暂无标签
+      embeddingStatus: 索引状态
+      indexed: 已索引
+      notIndexed: 未索引
   data:
     title: Data
     description: 管理存储 AIRI 数据、导出和重置
@@ -433,6 +458,9 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
+    memory:
+      description: 管理角色与你留下的美好回忆
+      title: 记忆体
     memory-long-term:
       description: 长期记忆
       title: 长期记忆
@@ -825,6 +853,9 @@ pages:
       openai:
         description: OpenAi.com
         title: OpenAI
+      openai-embed:
+        description: OpenAI 文本嵌入模型，用于语义搜索
+        title: OpenAI 嵌入模型
       azure-openai:
         description: Azure OpenAI API
         title: Azure OpenAI
