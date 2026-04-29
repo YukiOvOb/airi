@@ -23,7 +23,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run lint
       - run: docker run -v `pwd`:`pwd` -w `pwd` ghcr.io/realm/swiftlint:latest
         working-directory: ./apps/stage-pocket
@@ -65,7 +65,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build:packages
 
       - name: Build App
@@ -85,7 +85,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run typecheck
 
   check-provenance:
