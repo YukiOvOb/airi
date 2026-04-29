@@ -1,4 +1,4 @@
-import type { Profile } from 'wlipsync'
+import type { Profile, WLipSyncAudioNode } from 'wlipsync'
 
 const RAW_KEYS = ['A', 'E', 'I', 'O', 'U', 'S'] as const
 const RAW_TO_VOWEL: Record<typeof RAW_KEYS[number], VowelKey> = {
@@ -17,7 +17,7 @@ export interface Live2DLipSync {
   /**
    * The underlying wLipSync AudioWorkletNode. Connect your audio source to it.
    */
-  node: Awaited<ReturnType<typeof createWLipSyncNode>>
+  node: WLipSyncAudioNode
   /**
    * Get per-vowel weights (already remapped from AEIOUS to AEIOU) scaled by current volume.
    */

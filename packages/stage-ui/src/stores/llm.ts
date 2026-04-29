@@ -55,7 +55,7 @@ function streamOptionsToolsCompatibilityOk(model: string, chatProvider: ChatProv
   return options?.toolsCompatibility?.get(key) !== false
 }
 
-async function streamFrom(model: string, chatProvider: ChatProvider, messages: Message[], sendSparkCommand: (command: WebSocketEvents['spark:command']) => void, options?: StreamOptions) {
+async function streamFrom(model: string, chatProvider: ChatProvider, messages: Message[], _sendSparkCommand: (command: WebSocketEvents['spark:command']) => void, options?: StreamOptions) {
   const chatConfig = chatProvider.chat(model)
   const sanitized = sanitizeMessages(messages as unknown[])
 
