@@ -7,8 +7,8 @@ import { streamText } from '@xsai/stream-text'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-// DISABLED: createSparkCommandTool and debug are unused while their tools are disabled;
-// restore to: import { createSparkCommandTool, debug, mcp } from '../tools'
+// Memory tools for LLM to update/store information
+import { memory } from '../tools/memory'
 import { useModsServerChannelStore } from './mods/api/channel-server'
 
 export type StreamEvent
@@ -69,6 +69,8 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
   const supportedTools = streamOptionsToolsCompatibilityOk(model, chatProvider, messages, options)
   const tools = supportedTools
     ? [
+        // Memory tools - allow LLM to persist information across sessions
+        ...await memory(),
         // DISABLED: MCP tools disabled — not used by emotion/expression system; re-enable when
         // an MCP server is actively configured and external tool access is needed.
         // ...await mcp(),

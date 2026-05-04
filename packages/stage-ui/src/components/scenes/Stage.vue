@@ -17,7 +17,7 @@ import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
-import { useBroadcastChannel } from '@vueuse/core'
+import { useBroadcastChannel, useUserMedia } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
@@ -25,13 +25,18 @@ import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 
+import workletUrl from '../../workers/vad/process.worklet?worker&url'
+
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { useAuthProviderSync } from '../../composables/use-auth-provider-sync'
 import { llmInferenceEndToken } from '../../constants'
+import { createInterruptManager } from '../../services/speech/interrupt-manager'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useCharacterRuntimeStore } from '../../stores/character'
 import { useChatOrchestratorStore } from '../../stores/chat'
+import { useChatStreamStore } from '../../stores/chat/stream-store'
 import { useAiriCardStore } from '../../stores/modules'
+import { useHearingStore } from '../../stores/modules/hearing'
 import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
@@ -123,6 +128,17 @@ const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch } = storeToRefs(speechStore)
 const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
+
+// Hearing store for interrupt settings
+const hearingStore = useHearingStore()
+const { interruptEnabled, interruptThreshold, interruptMinSilenceDuration } = storeToRefs(hearingStore)
+
+// Voice interrupt manager for detecting user speech during AI playback
+const interruptManager = ref<ReturnType<typeof createInterruptManager> | null>(null)
+const { stream: micStream, start: startMic, stop: stopMic } = useUserMedia({
+  constraints: { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } },
+  enabled: false,
+})
 
 const { currentMotion } = storeToRefs(useLive2d())
 
@@ -245,6 +261,79 @@ const playbackManager = createPlaybackManager<AudioBuffer>({
   ownerOverflowPolicy: 'steal-oldest',
 })
 
+// Holds the speech intent for the current AI response. Declared here so the
+// interrupt manager (defined below) can null it out on user interrupt.
+let currentChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
+// Holds the previous turn's intent across user-send → AI-first-token, so the
+// old TTS keeps playing until the new reply actually starts streaming. Cancel
+// happens in the onTokenLiteral hook below.
+let previousChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
+// True between onBeforeMessageComposed and the first AI literal token of that
+// turn. Used to fire the deferred interrupt exactly once per turn.
+let pendingResponseStart = false
+
+// Initialize interrupt manager
+function initializeInterruptManager() {
+  if (interruptManager.value)
+    return
+
+  interruptManager.value = createInterruptManager(workletUrl, {
+    speechThreshold: interruptThreshold.value,
+    minSilenceDurationMs: interruptMinSilenceDuration.value,
+    onSpeechDetected: () => {
+      // When user speech is detected, stop all AI playback
+      if (interruptEnabled.value) {
+        console.info('[Stage] User speech detected, interrupting AI playback')
+        playbackManager.stopAll('user-interrupt')
+        speechPipeline.interrupt('user-interrupt')
+        // Pipeline.interrupt only cancels the active intent. In one-shot read
+        // mode the current intent may still be open and empty (waiting for
+        // onAssistantResponseEnd to feed it the bubble text), so cancel it
+        // explicitly. Also clear previousChatIntent (parked by deferred
+        // text-message interrupt) so it does not keep playing afterward.
+        // Clearing the refs short-circuits the writeLiteral in
+        // onAssistantResponseEnd so the pending reply is never spoken.
+        if (currentChatIntent) {
+          currentChatIntent.cancel('user-interrupt')
+          currentChatIntent = null
+        }
+        if (previousChatIntent) {
+          previousChatIntent.cancel('user-interrupt')
+          previousChatIntent = null
+        }
+        pendingResponseStart = false
+      }
+    },
+    onError: (error) => {
+      console.error('[Stage] Interrupt manager error:', error)
+    },
+  })
+}
+
+async function startInterruptMonitoring() {
+  if (!interruptEnabled.value || !micStream.value)
+    return
+
+  try {
+    if (!interruptManager.value) {
+      initializeInterruptManager()
+    }
+
+    await interruptManager.value!.start(micStream.value)
+    console.info('[Stage] Interrupt monitoring started')
+  }
+  catch (error) {
+    console.error('[Stage] Failed to start interrupt monitoring:', error)
+  }
+}
+
+function stopInterruptMonitoring() {
+  if (interruptManager.value?.isMonitoring()) {
+    interruptManager.value.stop()
+    console.info('[Stage] Interrupt monitoring stopped')
+  }
+}
+
 const speechPipeline = createSpeechPipeline<AudioBuffer>({
   tts: async (request, signal) => {
     if (signal.aborted)
@@ -349,6 +438,9 @@ playbackManager.onEnd(({ item }) => {
 
   nowSpeaking.value = false
   mouthOpenSize.value = 0
+
+  // Stop VAD monitoring when AI stops speaking
+  stopInterruptMonitoring()
 })
 
 playbackManager.onStart(({ item }) => {
@@ -369,6 +461,9 @@ playbackManager.onStart(({ item }) => {
   catch {
     // BroadcastChannel may be closed - don't break playback
   }
+
+  // Start VAD monitoring when AI starts speaking
+  startInterruptMonitoring()
 })
 
 function startLipSyncLoop() {
@@ -453,11 +548,15 @@ function setupAnalyser() {
   }
 }
 
-let currentChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
+// TTS reads directly from the UI dialog's text. The chat orchestrator filters
+// speech-only content into `streamingMessage.content` before the bubble renders
+// it; we wait for the message to finish streaming, then hand the entire bubble
+// text to the speech intent in one shot. See onAssistantResponseEnd below.
+// (currentChatIntent is declared near initializeInterruptManager so the
+// voice-interrupt callback can clear it.)
+const { streamingMessage } = storeToRefs(useChatStreamStore())
 
 chatHookCleanups.push(onBeforeMessageComposed(async () => {
-  playbackManager.stopAll('new-message')
-
   setupAnalyser()
   await setupLipSync()
   // Reset assistant caption for a new message
@@ -477,11 +576,23 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
     console.warn('[Stage] Failed to post present reset (channel may be closed)', { error })
   }
 
+  // Defer stopping previous TTS until the new reply actually begins (see
+  // onTokenLiteral below). If a prior turn left an intent open (e.g. user sent
+  // again before that turn ended), park it in previousChatIntent so we can
+  // cancel it later. previousChatIntent from an even earlier deferral, if any,
+  // gets cancelled now to prevent unbounded chains of pending intents.
+  if (previousChatIntent) {
+    previousChatIntent.cancel('new-message')
+    previousChatIntent = null
+  }
   if (currentChatIntent) {
-    currentChatIntent.cancel('new-message')
+    previousChatIntent = currentChatIntent
     currentChatIntent = null
   }
+  pendingResponseStart = true
 
+  // Open the new intent in queue mode — it sits behind any still-playing
+  // previous intent until that one is cancelled at first-token time.
   currentChatIntent = speechRuntimeStore.openIntent({
     ownerId: activeCardId.value,
     priority: 'normal',
@@ -489,13 +600,24 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
   })
 }))
 
+// First literal token from the new AI reply marks "AI started answering".
+// This is when we actually stop the previous TTS and clear the playback queue,
+// so the user hears the prior reply finish naturally up to this point.
+chatHookCleanups.push(onTokenLiteral(async () => {
+  if (!pendingResponseStart)
+    return
+  pendingResponseStart = false
+
+  playbackManager.stopAll('new-message')
+  if (previousChatIntent) {
+    previousChatIntent.cancel('new-message')
+    previousChatIntent = null
+  }
+}))
+
 chatHookCleanups.push(onBeforeSend(async (message) => {
   const directive = characterRuntimeStore.onBeforeSend(message)
   await applyCharacterRenderDirective(directive)
-}))
-
-chatHookCleanups.push(onTokenLiteral(async (literal) => {
-  currentChatIntent?.writeLiteral(literal)
 }))
 
 chatHookCleanups.push(onTokenSpecial(async (special) => {
@@ -514,6 +636,12 @@ chatHookCleanups.push(onStreamEnd(async () => {
 
 chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
   characterRuntimeStore.onAssistantResponseEnd(_message)
+  // Send the bubble text to TTS in one shot. `streamingMessage.value` still
+  // holds the finished message at this point — it is reset to empty later in
+  // the orchestrator after all end hooks have run.
+  const bubbleText = streamingMessage.value.content
+  if (currentChatIntent && typeof bubbleText === 'string' && bubbleText.length > 0)
+    currentChatIntent.writeLiteral(bubbleText)
   currentChatIntent?.end()
   currentChatIntent = null
   // const res = await embed({
@@ -526,13 +654,28 @@ chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
 
 // Resume audio context on first user interaction (browser requirement)
 let audioContextResumed = false
-function resumeAudioContextOnInteraction() {
+let micPermissionRequested = false
+async function resumeAudioContextOnInteraction() {
   if (audioContextResumed || !audioContext)
     return
   audioContextResumed = true
   audioContext.resume().catch(() => {
     // Ignore errors - audio context will be resumed when needed
   })
+
+  // Request microphone permission on first user interaction (if interrupt is enabled)
+  if (!micPermissionRequested && interruptEnabled.value) {
+    micPermissionRequested = true
+    try {
+      await startMic()
+      console.info('[Stage] Microphone access granted for interrupt monitoring')
+    }
+    catch (error) {
+      console.warn('[Stage] Microphone access denied or unavailable:', error)
+      // Continue without interrupt feature
+      // Note: We don't disable interruptEnabled here as user may enable it later
+    }
+  }
 }
 
 // Add event listeners for user interaction
@@ -586,6 +729,13 @@ onUnmounted(() => {
   resetLive2dLipSync()
   chatHookCleanups.forEach(dispose => dispose?.())
   viewUpdateCleanups.forEach(dispose => dispose?.())
+
+  // Clean up interrupt manager
+  interruptManager.value?.dispose()
+  interruptManager.value = null
+
+  // Stop microphone
+  stopMic()
 })
 
 defineExpose({

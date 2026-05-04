@@ -12,349 +12,333 @@
 <h1 align="center">Project AIRI</h1>
 
 <p align="center">
-  <strong>An AI Virtual Character Platform with Unique Technical Innovations</strong>
+  <strong>YukiOvOb's Fork with Custom Memory System Enhancements</strong>
 </p>
 
 <p align="center" style="margin-top: -10px;">
-  Re-creating Neuro-sama — a soul container for AI waifu / virtual characters
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/TgQ3Cu2F7A"><img src="https://img.shields.io/badge/Discord-7389D8?logo=discord&logoColor=white"></a>
-  <a href="https://github.com/moeru-ai/airi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/moeru-ai/airi.svg"></a>
-  <a href="https://github.com/moeru-ai/airi/stargazers"><img src="https://img.shields.io/github/stars/moeru-ai/airi"></a>
-  <a href="https://airi.moeru.ai"><img src="https://img.shields.io/badge/Try%20It-Online-success"></a>
+  This is a personal fork of <a href="https://github.com/moeru-ai/airi">moeru-ai/airi</a> with memory system improvements and additional features I've developed.
 </p>
 
 ---
 
-## What Makes AIRI Different?
+## ⚠️ About This Fork
 
-> **TL;DR**: AIRI is not just another AI chat interface. It's a **technically innovative platform** with 6 core breakthroughs that enable truly real-time, extensible, and intelligent virtual character interactions.
+This is **not** the official AIRI repository. This is my personal development fork where I'm implementing enhancements to the memory system and other features.
 
-### Quick Comparison with Other Projects
+**Upstream:** https://github.com/moeru-ai/airi
 
-| Feature | Typical AI Projects | **AIRI** |
-|---------|---------------------|----------|
-| Response Processing | Wait for complete response | **Zero-latency streaming parsing** |
-| Plugin System | Basic hooks | **Full lifecycle state machine + remote plugins** |
-| Memory System | Simple key-value | **Semantic embedding search + user intent recognition** |
-| Context Management | Single prompt injection | **Multi-source bucket system with strategies** |
-| Platform Support | Single platform | **Web + Desktop + Mobile unified** |
-| Character Animation | Static or basic | **Multi-layer real-time animation system** |
+**My Focus:** Memory system improvements, LLM tool integration, and speech interrupt capabilities
 
 ---
 
-## Six Core Innovations
+## 📋 My Development Log
 
-### 1. 🚀 LLM Marker Streaming Parser
+### ✅ Completed Enhancements
 
-**What it is:** A zero-latency parser that processes LLM streams in real-time, separating text from control markers.
+#### 1. Memory Tool System for LLM
+**Date:** 2026-04-30
+**Files Added:**
+- `packages/stage-ui/src/tools/memory.ts` (NEW)
+
+**What I Added:**
+
+Created a complete tool system that allows the LLM to directly manipulate memory through function calls:
 
 ```typescript
-// Example: Streaming response with embedded control tokens
-"Hello!" <|ACT:{"emotion":"happy"}|> "How are you?"
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-         Triggers emotion animation instantly
+// Tools I implemented:
+builtIn_memoryUpsert // Create/update memory with importance & priority
+builtIn_memoryDelete // Delete memory by ID
+builtIn_memoryList // List memories with filtering
 ```
 
-**Why it matters:**
-- Other projects wait for the complete response before parsing
-- AIRI processes tokens as they arrive, enabling:
-  - Instant emotional feedback
-  - Live tool call execution
-  - Smooth streaming animation
+**Why This Matters:**
+The LLM can now actively manage its own memory during conversations instead of relying solely on passive extraction. This enables:
+- Proactive memory creation when the LLM deems information important
+- Memory updates during conversation flow
+- Structured memory queries with filters
 
-**Location:** `packages/stage-ui/src/composables/llm-marker-parser.ts`
+**Code Location:** [`packages/stage-ui/src/tools/memory.ts`](./packages/stage-ui/src/tools/memory.ts)
 
 ---
 
-### 2. 🔌 Eventa-Driven Plugin System
+#### 2. User Intent Memory Extraction
+**Date:** 2026-04-30
+**Files Modified:**
+- `packages/stage-ui/src/stores/chat.ts` (lines 124-207)
 
-**What it is:** A state machine-driven plugin architecture with transport-agnostic communication.
+**What I Added:**
 
-```
-Plugin Lifecycle (XState):
-loading → loaded → authenticating → authenticated
-→ announced → preparing → prepared → configured → ready
-```
+Implemented phrase-triggered memory extraction that recognizes when users explicitly ask the AI to remember something:
 
-**Why it matters:**
-- **Transport abstraction:** Same API for in-memory, WebSocket, and Electron
-- **Remote plugins:** Run plugins in separate processes via WebSocket
-- **Version negotiation:** Automatic protocol/API compatibility handling
-- **Permission system:** Fine-grained apis/resources/capabilities control
-
-**What you can do:**
 ```typescript
-// Define a plugin that works everywhere
-definePlugin({
-  name: 'my-plugin',
-  setup: async ({ channels, apis }) => {
-    // Contribute capabilities, register tools, etc.
-  }
-})
+// Trigger phrases I added:
+const TRIGGER_PHRASES = [
+  '你把我说的话记住了', // You remembered what I said
+  '记住我说的话', // Remember what I said
+  '记住了吗', // Did you remember
+  '把这句话记住', // Remember this sentence
+  '记住这个', // Remember this
+  '记录下来', // Record it
+  '你记住了', // You remembered
+]
+
+// When user says these, memory extraction is triggered immediately
 ```
 
-**Location:** `packages/plugin-sdk/src/plugin-host/core.ts`
+**How It Works:**
+1. User sends a message containing a trigger phrase
+2. System detects the phrase in `shouldTriggerMemoryExtraction()`
+3. Memory extraction runs with enhanced context highlighting the user's request
+4. LLM prioritizes recent conversation for extraction
+
+**Code Location:** [`packages/stage-ui/src/stores/chat.ts:124-207`](./packages/stage-ui/src/stores/chat.ts)
 
 ---
 
-### 3. 🧠 Semantic Memory System
+#### 3. Memory Priority & Importance System
+**Date:** 2026-04-30
+**Files Modified:**
+- `packages/stage-ui/src/stores/memory/index.ts`
+- `packages/stage-ui/src/database/adapter.ts`
 
-**What it is:** An intelligent memory system with embedding-based semantic search.
+**What I Added:**
+
+Extended the memory system with two new metadata fields:
 
 ```typescript
 export interface MemoryRecord {
-  id: string
-  characterId: string      // Per-character isolation
-  type: 'user' | 'feedback' | 'project' | 'reference'
-  content: string
-  importance: 1-5         // Priority grading
+  // ... existing fields
+
+  // NEW: Importance level (1-5)
+  importance: 1-5  // 5 = most important, default 3
+
+  // NEW: Priority level
   priority: 'low' | 'medium' | 'high' | 'critical'
-  embedding?: number[]     // Semantic vector for search
+
+  // ... rest of interface
 }
 ```
 
-**Key Features:**
+**Visual Indicators I Added:**
+- ⚠️ for `critical` priority
+- 🔥 for `high` priority
+- ⭐ for `importance >= 4`
 
-| Feature | Description |
-|---------|-------------|
-| **User intent triggers** | Recognizes "记住这个" (remember this) to extract memory |
-| **Semantic search** | Vector similarity search when memory count > 30 |
-| **Decoupled design** | Gracefully falls back when no embedding provider |
-| **Local computation** | Zero extra API cost for cosine similarity |
-| **Import/Export** | JSON + CSV with merge mode |
+**Why This Matters:**
+- Critical information (like user preferences) can be flagged
+- High-priority memories surface first in retrieval
+- Visual indicators help identify important memories at a glance
 
-**Comparison with Claude Code:**
-
-| Feature | Claude Code | AIRI |
-|---------|-------------|------|
-| Storage | File system | IndexedDB (cross-platform) |
-| User triggers | No | ✅ Phrase detection |
-| Priority grading | No | ✅ importance + priority |
-| Visual indicators | No | ✅ ⚠️ 🔥 ⭐ markers |
-| Import/Export | Manual | ✅ Built-in |
-
-**Location:** `packages/stage-ui/src/stores/memory/index.ts`
-
-**Detailed Comparison:** [AIRI_Claude_Code_Memory_Comparison.md](./AIRI_Claude_Code_Memory_Comparison.md)
+**Code Location:** [`packages/stage-ui/src/stores/memory/index.ts`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 4. 📦 Context Bucket System
+#### 4. Memory Import/Export System
+**Date:** 2026-04-30
+**Files Modified:**
+- `packages/stage-ui/src/stores/memory/index.ts` (lines 543-627)
 
-**What it is:** A multi-source context injection system with flexible update strategies.
+**What I Added:**
+
+Full backup and restore capabilities for memory data:
 
 ```typescript
-// Context buckets by source
-const activeContexts = {
-  'system:datetime': [...],     // Current time
-  'system:memory': [...],       // Persistent memory
-  'minecraft:state': [...],     // Game state
-  'plugin:custom': [...]        // Plugin-provided
+// Export formats I implemented:
+exportMemories(format: 'json' | 'csv')  // Choose format
+
+// Import with merge mode:
+importMemories(jsonData, merge: boolean)
+  // merge: true  - Update existing, add new
+  // merge: false - Skip existing, only add new
+```
+
+**JSON Export Format:**
+```json
+{
+  "version": 1,
+  "characterId": "my-character",
+  "exportedAt": "2026-04-30T...",
+  "memories": [...]
 }
-
-// Two update strategies:
-ContextUpdateStrategy.ReplaceSelf  // Replace entire context
-ContextUpdateStrategy.AppendSelf   // Append to context
 ```
 
-**Why it matters:**
-- **Source isolation:** Each context provider is independent
-- **Strategy flexibility:** Choose replace or append per source
-- **Debug-friendly:** 400-entry context history for inspection
-- **Observable:** Full snapshots for devtools
+**Why This Matters:**
+- Backup important memories before character changes
+- Share memory configurations across characters
+- Migrate memories between different installations
 
-**Location:** `packages/stage-ui/src/stores/chat/context-store.ts`
+**Code Location:** [`packages/stage-ui/src/stores/memory/index.ts:543-627`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 5. 🌐 Multi-Platform Unified Architecture
+#### 5. Memory Filtering System
+**Date:** 2026-04-30
+**Files Modified:**
+- `packages/stage-ui/src/stores/memory/index.ts` (lines 504-541)
+- `packages/stage-pages/src/pages/settings/modules/memory.vue`
 
-**What it is:** 100% business logic shared across Web, Desktop, and Mobile.
+**What I Added:**
 
+UI and store-level filtering for memory management:
+
+```typescript
+// Filter states I added:
+filterImportance: ref<number | null>(null) // Filter by importance 1-5
+filterPriority: ref<string | null>(null) // Filter by priority level
+
+// Computed filtered records:
+filteredRecords = computed(() => {
+  let filtered = [...records.value]
+
+  // Apply importance filter
+  if (filterImportance.value !== null)
+    filtered = filtered.filter(r => r.importance === filterImportance.value)
+
+  // Apply priority filter
+  if (filterPriority.value !== null)
+    filtered = filtered.filter(r => r.priority === filterPriority.value)
+
+  // Sort by priority, then importance, then update time
+  filtered.sort((a, b) => {
+    // Priority: critical > high > medium > low
+    // Then importance: 5 > 4 > 3 > 2 > 1
+    // Then newest first
+  })
+
+  return filtered
+})
 ```
-apps/
-├── stage-web/         # Vue 3 (Web)
-├── stage-tamagotchi/  # Electron (Desktop)
-└── stage-pocket/      # Capacitor (iOS/Android)
 
-packages/
-├── stage-ui/          # ← All core logic shared here
-├── stage-ui-live2d/   # Live2D integration
-├── stage-ui-three/    # Three.js VRM support
-└── plugin-sdk/        # Plugin system
-```
-
-**Platform matrix:**
-
-| Platform | Technology | Status |
-|----------|-----------|--------|
-| Web | Vue 3 + Vite | ✅ Stable |
-| Desktop | Electron | ✅ Stable |
-| Mobile | Capacitor | ✅ Stable |
-
-**Innovation:** Minimal platform-specific code — only entry points and adaptations.
+**Code Location:** [`packages/stage-ui/src/stores/memory/index.ts:504-541`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 6. 🎭 Real-time Character Animation
+#### 6. Memory Tools Catalog for LLM
+**Date:** 2026-04-30
+**Files Modified:**
+- `packages/stage-ui/src/stores/chat/context-providers/memory.ts` (lines 12-25)
 
-**What it is:** Multi-layer animation system driven by LLM emotion tags and audio analysis.
+**What I Added:**
 
+A tool catalog that prevents the LLM from hallucinating non-existent memory tool names:
+
+```typescript
+const MEMORY_TOOLS_CATALOG = `## 记忆管理工具
+
+如需新增、更新或删除记忆，**只能**调用以下工具（其它名称都不存在，调用会报错）：
+
+- \`builtIn_memoryUpsert\` — 创建或更新一条记忆
+  - 必需参数：\`type\`, \`name\`, \`content\`
+  - 可选参数：\`description\`, \`importance\` (1-5), \`priority\`
+- \`builtIn_memoryDelete\` — 按 \`id\` 删除一条记忆
+- \`builtIn_memoryList\` — 列出当前记忆，可按 \`type\` 或 \`minImportance\` 过滤
+
+不要尝试调用 \`memory.write*\`、\`airi:system:memory:*\` 或任何其它名称的记忆工具。`
 ```
-Audio Stream
-    ↓
-AudioAnalyzer (beat detection, RMS)
-    ↓
-Animation Layers:
-  ├─ Idle Animation
-  ├─ Motion Layers
-  ├─ Expression (from <|ACT:...|> tags)
-  └─ Lip Sync (phoneme mapping)
-    ↓
-Live2D / Three.js Renderer
-```
 
-**Supported engines:**
-- **Live2D:** Motion, expression, beat-sync
-- **Three.js VRM:** Lip-sync, expression, outline, eye-tracking
+**Why This Matters:**
+LLMs often try to call plausible-sounding but non-existent tool names. This catalog explicitly tells the LLM what tools exist, reducing API errors.
 
-**Location:** `packages/stage-ui-live2d/`, `packages/stage-ui-three/`
+**Code Location:** [`packages/stage-ui/src/stores/chat/context-providers/memory.ts:12-25`](./packages/stage-ui/src/stores/chat/context-providers/memory.ts)
 
 ---
 
-## Architecture Overview
+### 🚧 In Progress
 
+#### Speech Interrupt Manager
+**Date:** 2026-04-30
+**Files Added:**
+- `packages/stage-ui/src/services/speech/interrupt-manager.ts` (NEW)
+
+**What I'm Building:**
+
+A VAD (Voice Activity Detection) based interrupt system compatible with Open-LLM-VTuber settings:
+
+```typescript
+// VAD settings I'm using (compatible with Open-LLM-VTuber):
+speechThreshold: 0.5 // Slightly higher for noise immunity
+minSilenceDurationMs: 800 // Same as Open-LLM-VTuber
+minSpeechDurationMs: 100 // Same as Open-LLM-VTuber
 ```
-AIRI/
-├── apps/
-│   ├── stage-web/         # Web application
-│   ├── stage-tamagotchi/  # Desktop application
-│   └── stage-pocket/      # Mobile application
-├── packages/
-│   ├── stage-ui/          # Core business logic (shared)
-│   ├── plugin-sdk/        # Plugin system
-│   ├── stage-ui-live2d/   # Live2D integration
-│   └── stage-ui-three/    # Three.js VRM support
-└── plugins/               # Built-in plugins
-    ├── airi-plugin-bilibili-laplace/
-    ├── airi-plugin-claude-code/
-    ├── airi-plugin-homeassistant/
-    └── airi-plugin-web-extension/
-```
+
+**Purpose:**
+Detect when user starts speaking during AI response and trigger interrupt. This enables natural conversation flow where users can cut in when the AI is talking.
+
+**Status:** Implemented, integration in progress
+
+**Code Location:** [`packages/stage-ui/src/services/speech/interrupt-manager.ts`](./packages/stage-ui/src/services/speech/interrupt-manager.ts)
 
 ---
 
-## What Can AIRI Do?
+## 📊 Memory System Comparison with Upstream
 
-### Gaming Capabilities
-- [x] Play [Minecraft](https://www.minecraft.net)
-- [x] Play [Factorio](https://www.factorio.com)
-- [x] Play [Kerbal Space Program](https://www.kerbalspaceprogram.com/)
-
-### Communication Platforms
-- [x] Chat in [Telegram](https://telegram.org)
-- [x] Chat in [Discord](https://discord.com)
-
-### Character Rendering
-- [x] VRM support with animations
-- [x] Live2D support with animations
-- [x] Auto blink, look at, idle movements
-
-### Intelligence
-- [x] Semantic memory with embedding search
-- [x] User intent recognition
-- [x] Multi-source context management
+| Feature | Upstream AIRI | My Fork |
+|---------|---------------|---------|
+| LLM Tool Access | ❌ None | ✅ 3 tools implemented |
+| User Intent Triggers | ❌ None | ✅ 7 trigger phrases |
+| Importance/Priority | ❌ None | ✅ 2-level system |
+| Visual Indicators | ❌ None | ✅ ⚠️ 🔥 ⭐ markers |
+| Import/Export | ❌ None | ✅ JSON + CSV |
+| Filtering | ❌ None | ✅ By importance/priority |
+| Tool Catalog | ❌ None | ✅ Prevents hallucinations |
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- pnpm 10+
-
-### Installation
+## 🛠️ Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/moeru-ai/airi.git
+# Clone my fork
+git clone https://github.com/YukiOvOb/airi.git
 cd airi
 
 # Install dependencies
 pnpm install
 
-# Run development server
-pnpm dev        # Web
-pnpm dev:tamagotchi  # Desktop
-```
-
-### Build
-
-```bash
-pnpm build
+# Run development
+pnpm dev              # Web version
+pnpm dev:tamagotchi   # Desktop version
 ```
 
 ---
 
-## Documentation
+## 📝 Technical Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Memory System Comparison](./AIRI_Claude_Code_Memory_Comparison.md) | Detailed comparison with Claude Code's memory system |
-| [Agent Guide](./AGENTS.md) | Contributor reference for the codebase |
-| [Deployment Guide](./DEPLOYMENT.md) | Deployment instructions |
-| [简体中文](./README.zh-CN.md) | Chinese version |
+| [Memory System Comparison](./AIRI_Claude_Code_Memory_Comparison.md) | My analysis of AIRI vs Claude Code memory systems |
+| [Upstream README](./README.original.backup.md) | Original AIRI README (backed up) |
+| [简体中文](./README.zh-CN.md) | Chinese version of this page |
 
 ---
 
-## Supported LLM Providers
+## 🔍 Files I've Modified
 
-Powered by [xsai](https://github.com/moeru-ai/xsai):
-
-- OpenAI, Anthropic Claude, DeepSeek, Qwen, Google Gemini, xAI
-- OpenRouter, vLLM, SGLang, Ollama, Groq, Mistral
-- And 30+ more providers...
-
----
-
-## Sub-projects
-
-Born from AIRI development:
-
-- [@proj-airi](https://github.com/proj-airi) organization for all AIRI-related projects
-- [xsai](https://github.com/moeru-ai/xsai) - Universal LLM provider abstraction
-- [memory-pgvector](https://github.com/moeru-ai/memory-pgvector) - Vector memory storage
+```
+packages/stage-ui/src/
+├── tools/memory.ts                                    # NEW - LLM memory tools
+├── services/speech/interrupt-manager.ts              # NEW - VAD interrupt system
+├── stores/
+│   ├── memory/index.ts                               # MODIFIED - Priority, import/export, filter
+│   ├── chat.ts                                       # MODIFIED - User intent triggers
+│   └── chat/context-providers/memory.ts              # MODIFIED - Tool catalog
+├── database/adapter.ts                               # MODIFIED - Memory schema extensions
+└── components/scenes/Stage.vue                       # MODIFIED - UI integration
+```
 
 ---
 
-## Community & Support
+## 🤝 Contributing
+
+This is a personal development fork. If you want to contribute to the official AIRI project, please visit https://github.com/moeru-ai/airi
+
+---
+
+## 📄 License
+
+MIT (same as upstream)
+
+---
 
 <p align="center">
-  <a href="https://discord.gg/TgQ3Cu2F7A">
-    <img src="https://img.shields.io/badge/Discord-7389D8?logo=discord&logoColor=white">
-  </a>
-  <a href="https://x.com/proj_airi">
-    <img src="https://img.shields.io/badge/%40proj__airi-black?logo=x">
-  </a>
-  <a href="https://github.com/moeru-ai/airi/stargazers">
-    <img src="https://img.shields.io/github/stars/moeru-ai/airi?style=social">
-  </a>
+  <strong>Upstream Project:</strong> <a href="https://github.com/moeru-ai/airi">moeru-ai/airi</a>
 </p>
-
----
-
-## License
-
-MIT © [Moeru AI Project](https://github.com/moeru-ai)
-
----
-
-<details>
-<summary>Original README (backup)</summary>
-
-The original README with download buttons and additional information has been backed up to `README.original.backup.md`.
-</details>

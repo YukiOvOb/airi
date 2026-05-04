@@ -1,3 +1,5 @@
+// Character module (new)
+export * from './character'
 export { Live2DCanvas, Live2DModel } from './components/scenes/live2d'
 export { default as Live2DScene } from './components/scenes/Live2D.vue'
 export * from './composables/live2d'
@@ -8,4 +10,5 @@ export * from './utils/live2d-opfs-registration'
 export * from './utils/live2d-preview'
 export * from './utils/live2d-uri-encode-filenames'
 export * from './utils/live2d-zip-loader'
+
 export * from './utils/opfs-loader'

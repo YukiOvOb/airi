@@ -5,40 +5,67 @@ import type { BaseVAD, BaseVADConfig, VADEventCallback, VADEvents } from '../../
 import { AutoModel, Tensor } from '@huggingface/transformers'
 
 /**
+ * VAD States matching Open-LLM-VTuber's implementation
+ */
+enum VADState {
+  IDLE = 'IDLE', // Waiting for speech
+  ACTIVE = 'ACTIVE', // Speech detected
+  INACTIVE = 'INACTIVE', // Speech ending, waiting for confirmation
+}
+
+/**
  * Voice Activity Detection processor
+ * Implements the same state machine logic as Open-LLM-VTuber's Silero VAD
  */
 export class VAD implements BaseVAD {
   private config: BaseVADConfig
   private model: PreTrainedModel | undefined
   private state: Tensor
   private sampleRateTensor: Tensor
-  private buffer: Float32Array
-  private bufferPointer: number = 0
-  private isRecording: boolean = false
-  private postSpeechSamples: number = 0
-  private prevBuffers: Float32Array[] = []
   private inferenceChain: Promise<any> = Promise.resolve()
   private eventListeners: Partial<Record<keyof VADEvents, VADEventCallback<any>[]>> = {}
   private isReady: boolean = false
 
+  // State machine properties (matching Open-LLM-VTuber)
+  private vadState: VADState = VADState.IDLE
+  private probWindow: number[] = []
+  private dbWindow: number[] = []
+  private preBuffer: Float32Array[] = []
+  private hitCount: number = 0
+  private missCount: number = 0
+
+  // Audio buffers for collecting speech segments
+  private speechProbs: number[] = []
+  private speechDbs: number[] = []
+  private speechBuffer: Float32Array
+
   constructor(userConfig: Partial<BaseVADConfig> = {}) {
-    // Default configuration
+    // Default configuration matching Open-LLM-VTuber's defaults
     const defaultConfig: BaseVADConfig = {
       sampleRate: 16000,
-      speechThreshold: 0.3,
-      exitThreshold: 0.1,
-      minSilenceDurationMs: 400,
-      speechPadMs: 80,
-      minSpeechDurationMs: 250,
+      speechThreshold: 0.5, // Open-LLM-VTuber uses 0.4
+      exitThreshold: 0.25, // speechThreshold * 0.5
+      minSilenceDurationMs: 800, // Open-LLM-VTuber: 24 * 32ms = 768ms
+      speechPadMs: 80, // ~2.5 frames pre-buffer
+      minSpeechDurationMs: 100, // Open-LLM-VTuber: 3 * 32ms = 96ms
       maxBufferDuration: 30,
-      newBufferSize: 512,
+      newBufferSize: 512, // 512 samples = 32ms at 16kHz
     }
 
     this.config = { ...defaultConfig, ...userConfig }
 
-    this.buffer = new Float32Array(this.config.maxBufferDuration * this.config.sampleRate)
+    const maxSamples = this.config.maxBufferDuration * this.config.sampleRate
+    this.speechBuffer = new Float32Array(maxSamples)
     this.sampleRateTensor = new Tensor('int64', [this.config.sampleRate], [])
     this.state = new Tensor('float32', new Float32Array(2 * 1 * 128), [2, 1, 128])
+
+    // Initialize windows (smoothing_window = 5 matching Open-LLM-VTuber)
+    const smoothingWindow = 5
+    this.probWindow = new Array(smoothingWindow).fill(0)
+    this.dbWindow = new Array(smoothingWindow).fill(0)
+
+    // Pre-buffer: ~20 frames = 640ms at 32ms/frame (Open-LLM-VTuber uses 20)
+    this.preBuffer = []
   }
 
   /**
@@ -58,6 +85,66 @@ export class VAD implements BaseVAD {
       this.emit('status', { type: 'error', message: `Failed to load VAD model: ${error}` })
       throw error
     }
+  }
+
+  /**
+   * Calculate decibel level of audio (matching Open-LLM-VTuber)
+   * @param audioData - Float32Array of audio samples
+   * @returns Decibel level
+   */
+  private calculateDb(audioData: Float32Array): number {
+    // Calculate RMS (Root Mean Square)
+    let sumSquares = 0
+    for (let i = 0; i < audioData.length; i++) {
+      sumSquares += audioData[i] * audioData[i]
+    }
+    const rms = Math.sqrt(sumSquares / audioData.length)
+
+    // Convert to decibels: 20 * log10(rms)
+    // Add small value to avoid log(0)
+    if (rms > 0) {
+      return 20 * Math.log10(rms + 1e-7)
+    }
+    return -Infinity
+  }
+
+  /**
+   * Get smoothed probability and decibel values (matching Open-LLM-VTuber)
+   * @param prob - Speech probability from VAD model
+   * @param db - Decibel level
+   * @returns Smoothed [probability, decibel]
+   */
+  private getSmoothedValues(prob: number, db: number): [number, number] {
+    // Update sliding windows
+    this.probWindow.push(prob)
+    this.dbWindow.push(db)
+
+    // Calculate averages
+    const avgProb = this.probWindow.reduce((a, b) => a + b, 0) / this.probWindow.length
+    const avgDb = this.dbWindow.reduce((a, b) => a + b, 0) / this.dbWindow.length
+
+    return [avgProb, avgDb]
+  }
+
+  /**
+   * Check if both thresholds are met (matching Open-LLM-VTuber)
+   * @param smoothedProb - Smoothed speech probability
+   * @param smoothedDb - Smoothed decibel level
+   * @returns True if both thresholds are met
+   */
+  private checkThresholds(smoothedProb: number, smoothedDb: number): boolean {
+    const dbThreshold = 60 // Open-LLM-VTuber default
+    return smoothedProb >= this.config.speechThreshold && smoothedDb >= dbThreshold
+  }
+
+  /**
+   * Reset speech collection buffers
+   */
+  private resetSpeechBuffers(): void {
+    this.speechProbs = []
+    this.speechDbs = []
+    this.speechBuffer.fill(0)
+    this.preBuffer = []
   }
 
   /**
@@ -91,93 +178,165 @@ export class VAD implements BaseVAD {
   }
 
   /**
-   * Process audio buffer for speech detection
+   * Process audio buffer for speech detection using Open-LLM-VTuber's state machine logic
    */
   public async processAudio(inputBuffer: Float32Array): Promise<void> {
     if (!this.isReady) {
       throw new Error('VAD model is not initialized. Call initialize() first.')
     }
 
-    const wasRecording = this.isRecording
+    const windowSize = this.config.newBufferSize // 512 samples = 32ms at 16kHz
 
-    // Perform VAD on the input buffer
-    const isSpeech = await this.detectSpeech(inputBuffer)
+    // Process in chunks matching Open-LLM-VTuber's window size
+    for (let i = 0; i < inputBuffer.length; i += windowSize) {
+      const chunk = inputBuffer.subarray(i, Math.min(i + windowSize, inputBuffer.length))
+      if (chunk.length < windowSize)
+        break
 
-    // Calculate derived constants
-    const sampleRateMs = this.config.sampleRate / 1000
-    const minSilenceDurationSamples = this.config.minSilenceDurationMs * sampleRateMs
-    const speechPadSamples = this.config.speechPadMs * sampleRateMs
-    const minSpeechDurationSamples = this.config.minSpeechDurationMs * sampleRateMs
-    const maxPrevBuffers = Math.ceil(speechPadSamples / this.config.newBufferSize)
+      // Get VAD probability
+      const speechProb = await this.detectSpeech(chunk)
 
-    // If not currently in speech and the current buffer isn't speech,
-    // store it in the previous buffers queue for potential padding
-    if (!wasRecording && !isSpeech) {
-      if (this.prevBuffers.length >= maxPrevBuffers) {
-        this.prevBuffers.shift()
+      // Calculate decibel level
+      const db = this.calculateDb(chunk)
+
+      // Get smoothed values
+      const [smoothedProb, smoothedDb] = this.getSmoothedValues(speechProb, db)
+
+      // Process through state machine
+      await this.processStateMachine(chunk, smoothedProb, smoothedDb)
+    }
+  }
+
+  /**
+   * Process the state machine logic (matching Open-LLM-VTuber)
+   * @param chunk - Audio chunk (512 samples)
+   * @param smoothedProb - Smoothed speech probability
+   * @param smoothedDb - Smoothed decibel level
+   */
+  private async processStateMachine(chunk: Float32Array, smoothedProb: number, smoothedDb: number): Promise<void> {
+    const thresholdsMet = this.checkThresholds(smoothedProb, smoothedDb)
+    const requiredHits = 3 // Open-LLM-VTuber default
+    const requiredMisses = 24 // Open-LLM-VTuber default
+
+    if (this.vadState === VADState.IDLE) {
+      // Store in pre-buffer (max 20 frames = ~640ms)
+      this.preBuffer.push(chunk.slice())
+      if (this.preBuffer.length > 20) {
+        this.preBuffer.shift()
       }
 
-      this.prevBuffers.push(inputBuffer.slice(0))
+      if (thresholdsMet) {
+        this.hitCount++
+        if (this.hitCount >= requiredHits) {
+          // Transition to ACTIVE
+          this.vadState = VADState.ACTIVE
+          this.hitCount = 0
+          this.emit('speech-start', undefined)
 
-      return
-    }
-
-    // Check if we need to handle buffer overflow
-    const remaining = this.buffer.length - this.bufferPointer
-    if (inputBuffer.length >= remaining) {
-      // The buffer is full, process what we have
-      this.buffer.set(inputBuffer.subarray(0, remaining), this.bufferPointer)
-      this.bufferPointer += remaining
-
-      // Process and reset with overflow
-      const overflow = inputBuffer.subarray(remaining)
-      this.processSpeechSegment(overflow)
-
-      return
-    }
-    else {
-      // Add input to the buffer
-      this.buffer.set(inputBuffer, this.bufferPointer)
-      this.bufferPointer += inputBuffer.length
-    }
-
-    // Handle speech detection
-    if (isSpeech) {
-      if (!this.isRecording) {
-        // Speech just started
-        this.emit('speech-start', undefined)
-        this.emit('status', { type: 'info', message: 'Speech detected' })
+          // Start collecting speech data
+          this.addToSpeechBuffer(chunk, smoothedProb, smoothedDb)
+        }
       }
-
-      // Update state
-      this.isRecording = true
-      this.postSpeechSamples = 0
-
-      return
-    }
-
-    // At this point, we were recording but the current buffer is not speech
-    this.postSpeechSamples += inputBuffer.length
-
-    // Check if silence is long enough to consider speech ended
-    if (this.postSpeechSamples >= minSilenceDurationSamples) {
-      // Check if the speech segment is long enough to process
-      if (this.bufferPointer < minSpeechDurationSamples) {
-        // Too short, reset without processing
-        this.reset()
-
-        return
+      else {
+        this.hitCount = 0
       }
-
-      // Process the speech segment
-      this.processSpeechSegment()
     }
+    else if (this.vadState === VADState.ACTIVE) {
+      this.addToSpeechBuffer(chunk, smoothedProb, smoothedDb)
+
+      if (thresholdsMet) {
+        this.missCount = 0
+      }
+      else {
+        this.missCount++
+        if (this.missCount >= requiredMisses) {
+          // Transition to INACTIVE
+          this.vadState = VADState.INACTIVE
+          this.missCount = 0
+        }
+      }
+    }
+    else if (this.vadState === VADState.INACTIVE) {
+      this.addToSpeechBuffer(chunk, smoothedProb, smoothedDb)
+
+      if (thresholdsMet) {
+        this.hitCount++
+        if (this.hitCount >= requiredHits) {
+          // Back to ACTIVE
+          this.vadState = VADState.ACTIVE
+          this.hitCount = 0
+          this.missCount = 0
+        }
+      }
+      else {
+        this.hitCount = 0
+        this.missCount++
+        if (this.missCount >= requiredMisses) {
+          // Back to IDLE - emit the complete speech segment
+          this.vadState = VADState.IDLE
+          this.missCount = 0
+
+          // Only emit if we have enough data (>30 frames ~ 1 second)
+          if (this.speechProbs.length > 30) {
+            await this.emitSpeechSegment()
+          }
+
+          this.resetSpeechBuffers()
+          this.preBuffer = []
+        }
+      }
+    }
+  }
+
+  /**
+   * Add audio chunk to speech buffer
+   */
+  private addToSpeechBuffer(chunk: Float32Array, prob: number, db: number): void {
+    this.speechProbs.push(prob)
+    this.speechDbs.push(db)
+
+    // Add to speech buffer
+    const currentLength = this.speechProbs.length * this.config.newBufferSize
+    if (currentLength + chunk.length <= this.speechBuffer.length) {
+      this.speechBuffer.set(chunk, this.speechProbs.length * this.config.newBufferSize)
+    }
+  }
+
+  /**
+   * Emit the complete speech segment
+   */
+  private async emitSpeechSegment(): Promise<void> {
+    // Combine pre-buffer and speech buffer
+    const preBufferLength = this.preBuffer.length * this.config.newBufferSize
+    const speechLength = this.speechProbs.length * this.config.newBufferSize
+    const totalLength = preBufferLength + speechLength
+
+    const combinedBuffer = new Float32Array(totalLength)
+
+    // Copy pre-buffer
+    let offset = 0
+    for (const chunk of this.preBuffer) {
+      combinedBuffer.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    // Copy speech buffer
+    combinedBuffer.set(this.speechBuffer.subarray(0, speechLength), offset)
+
+    // Calculate duration
+    const durationMs = (totalLength / this.config.sampleRate) * 1000
+
+    this.emit('speech-end', undefined)
+    this.emit('speech-ready', {
+      buffer: combinedBuffer,
+      duration: durationMs,
+    })
   }
 
   /**
    * Detect speech in an audio buffer
    */
-  private async detectSpeech(buffer: Float32Array): Promise<boolean> {
+  private async detectSpeech(buffer: Float32Array): Promise<number> {
     const input = new Tensor('float32', buffer, [1, buffer.length])
 
     const { stateN, output } = await (this.inferenceChain = this.inferenceChain.then(() =>
@@ -195,61 +354,7 @@ export class VAD implements BaseVAD {
 
     this.emit('debug', { message: 'VAD score', data: { probability: speechProb } })
 
-    // Apply thresholds
-    return (
-      speechProb > this.config.speechThreshold
-      || (this.isRecording && speechProb >= this.config.exitThreshold)
-    )
-  }
-
-  /**
-   * Process a complete speech segment
-   */
-  private processSpeechSegment(overflow?: Float32Array): void {
-    const sampleRateMs = this.config.sampleRate / 1000
-    const speechPadSamples = this.config.speechPadMs * sampleRateMs
-
-    // Calculate duration info
-    const duration = (this.bufferPointer / this.config.sampleRate) * 1000
-    const overflowLength = overflow?.length ?? 0
-
-    // Create the final buffer with padding
-    const prevLength = this.prevBuffers.reduce((acc, b) => acc + b.length, 0)
-    const finalBuffer = new Float32Array(prevLength + this.bufferPointer + speechPadSamples)
-
-    // Add previous buffers for pre-speech padding
-    let offset = 0
-    for (const prev of this.prevBuffers) {
-      finalBuffer.set(prev, offset)
-      offset += prev.length
-    }
-
-    // Add the main speech segment
-    finalBuffer.set(this.buffer.slice(0, this.bufferPointer + speechPadSamples), offset)
-
-    // Emit the speech segment
-    this.emit('speech-end', undefined)
-    this.emit('speech-ready', {
-      buffer: finalBuffer,
-      duration,
-    })
-
-    // Reset for the next segment
-    if (overflow) {
-      this.buffer.set(overflow, 0)
-    }
-    this.reset(overflowLength)
-  }
-
-  /**
-   * Reset the VAD state
-   */
-  private reset(offset: number = 0): void {
-    this.buffer.fill(0, offset)
-    this.bufferPointer = offset
-    this.isRecording = false
-    this.postSpeechSamples = 0
-    this.prevBuffers = []
+    return speechProb
   }
 
   /**
@@ -258,10 +363,10 @@ export class VAD implements BaseVAD {
   public updateConfig(newConfig: Partial<BaseVADConfig>): void {
     this.config = { ...this.config, ...newConfig }
 
-    // If buffer size changed, create a new buffer
+    // If buffer size changed, create new buffers
     if (newConfig.maxBufferDuration || newConfig.sampleRate) {
-      this.buffer = new Float32Array(this.config.maxBufferDuration * this.config.sampleRate)
-      this.bufferPointer = 0
+      const maxSamples = this.config.maxBufferDuration * this.config.sampleRate
+      this.speechBuffer = new Float32Array(maxSamples)
     }
 
     // Update sample rate tensor if needed

@@ -12,349 +12,333 @@
 <h1 align="center">Project AIRI</h1>
 
 <p align="center">
-  <strong>具有独特技术创新的 AI 虚拟角色平台</strong>
+  <strong>YukiOvOb 的个人分支 - 带有自定义记忆系统增强</strong>
 </p>
 
 <p align="center" style="margin-top: -10px;">
-  重现 Neuro-sama — AI 虚拟角色的灵魂容器
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/TgQ3Cu2F7A"><img src="https://img.shields.io/badge/Discord-7389D8?logo=discord&logoColor=white"></a>
-  <a href="https://github.com/moeru-ai/airi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/moeru-ai/airi.svg"></a>
-  <a href="https://github.com/moeru-ai/airi/stargazers"><img src="https://img.shields.io/github/stars/moeru-ai/airi"></a>
-  <a href="https://airi.moeru.ai"><img src="https://img.shields.io/badge/在线体验-success"></a>
+  这是 <a href="https://github.com/moeru-ai/airi">moeru-ai/airi</a> 的个人开发分支，我在这里实现记忆系统的改进和其他功能。
 </p>
 
 ---
 
-## AIRI 的独特之处
+## ⚠️ 关于此分支
 
-> **简而言之**：AIRI 不仅仅是一个 AI 聊天界面。它是一个**技术创新平台**，拥有 6 大核心突破，能够实现真正的实时、可扩展、智能的虚拟角色交互。
+这**不是**官方 AIRI 仓库。这是我的个人开发分支，我正在实现记忆系统的增强功能和其他特性。
 
-### 与其他项目的快速对比
+**上游项目:** https://github.com/moeru-ai/airi
 
-| 特性 | 普通 AI 项目 | **AIRI** |
-|---------|---------------------|----------|
-| 响应处理 | 等待完整响应 | **零延迟流式解析** |
-| 插件系统 | 基础钩子 | **完整生命周期状态机 + 远程插件** |
-| 记忆系统 | 简单键值存储 | **语义嵌入搜索 + 用户意图识别** |
-| 上下文管理 | 单次提示注入 | **多源桶系统与策略管理** |
-| 平台支持 | 单一平台 | **Web + 桌面 + 移动端统一** |
-| 角色动画 | 静态或基础 | **多层实时动画系统** |
+**我的专注:** 记忆系统改进、LLM 工具集成、语音中断功能
 
 ---
 
-## 六大核心创新
+## 📋 我的开发日志
 
-### 1. 🚀 LLM 标记流式解析器
+### ✅ 已完成的增强
 
-**是什么**：一个零延迟解析器，实时处理 LLM 流，将文本与控制标记分离。
+#### 1. LLM 记忆工具系统
+**日期:** 2026-04-30
+**新增文件:**
+- `packages/stage-ui/src/tools/memory.ts` (新建)
+
+**我添加了什么:**
+
+创建了完整的工具系统，允许 LLM 通过函数调用直接操作记忆：
 
 ```typescript
-// 示例：嵌入控制标记的流式响应
-"你好！" <|ACT:{"emotion":"happy"}|> "你好吗？"
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-         立即触发情感动画
+// 我实现的工具：
+builtIn_memoryUpsert // 创建/更新记忆（支持重要性和优先级）
+builtIn_memoryDelete // 按 ID 删除记忆
+builtIn_memoryList // 列出记忆（支持过滤）
 ```
 
-**为什么重要：**
-- 其他项目等待完整响应后才解析
-- AIRI 在接收 token 的同时处理，实现：
-  - 即时情感反馈
-  - 实时工具调用执行
-  - 流畅的流式动画
+**为什么重要:**
+LLM 现在可以在对话过程中主动管理自己的记忆，而不必仅依赖被动的提取。这实现了：
+- LLM 认为信息重要时主动创建记忆
+- 在对话流中更新记忆
+- 带过滤的结构化记忆查询
 
-**位置**：`packages/stage-ui/src/composables/llm-marker-parser.ts`
+**代码位置:** [`packages/stage-ui/src/tools/memory.ts`](./packages/stage-ui/src/tools/memory.ts)
 
 ---
 
-### 2. 🔌 Eventa 驱动的插件系统
+#### 2. 用户意图记忆提取
+**日期:** 2026-04-30
+**修改文件:**
+- `packages/stage-ui/src/stores/chat.ts` (第 124-207 行)
 
-**是什么**：一个状态机驱动的插件架构，具有传输无关的通信能力。
+**我添加了什么:**
 
-```
-插件生命周期 (XState):
-loading → loaded → authenticating → authenticated
-→ announced → preparing → prepared → configured → ready
-```
+实现了短语触发的记忆提取，当用户明确要求 AI 记住某事时进行识别：
 
-**为什么重要：**
-- **传输抽象**：in-memory、WebSocket 和 Electron 使用相同的 API
-- **远程插件**：通过 WebSocket 在独立进程中运行插件
-- **版本协商**：自动处理协议/API 兼容性
-- **权限系统**：细粒度的 apis/resources/capabilities 控制
-
-**你可以做什么：**
 ```typescript
-// 定义一个在任何地方都能工作的插件
-definePlugin({
-  name: 'my-plugin',
-  setup: async ({ channels, apis }) => {
-    // 贡献能力、注册工具等
-  }
-})
+// 我添加的触发短语：
+const TRIGGER_PHRASES = [
+  '你把我说的话记住了', // You remembered what I said
+  '记住我说的话', // Remember what I said
+  '记住了吗', // Did you remember
+  '把这句话记住', // Remember this sentence
+  '记住这个', // Remember this
+  '记录下来', // Record it
+  '你记住了', // You remembered
+]
+
+// 当用户说这些话时，立即触发记忆提取
 ```
 
-**位置**：`packages/plugin-sdk/src/plugin-host/core.ts`
+**工作原理:**
+1. 用户发送包含触发短语的消息
+2. 系统在 `shouldTriggerMemoryExtraction()` 中检测到短语
+3. 记忆提取运行，并带有增强的上下文突出用户的请求
+4. LLM 优先提取最近的对话内容
+
+**代码位置:** [`packages/stage-ui/src/stores/chat.ts:124-207`](./packages/stage-ui/src/stores/chat.ts)
 
 ---
 
-### 3. 🧠 语义记忆系统
+#### 3. 记忆优先级与重要性系统
+**日期:** 2026-04-30
+**修改文件:**
+- `packages/stage-ui/src/stores/memory/index.ts`
+- `packages/stage-ui/src/database/adapter.ts`
 
-**是什么**：一个具有基于嵌入的语义搜索的智能记忆系统。
+**我添加了什么:**
+
+为记忆系统扩展了两个新的元数据字段：
 
 ```typescript
 export interface MemoryRecord {
-  id: string
-  characterId: string      // 按角色隔离
-  type: 'user' | 'feedback' | 'project' | 'reference'
-  content: string
-  importance: 1-5         // 优先级分级
+  // ... 原有字段
+
+  // 新增：重要性等级 (1-5)
+  importance: 1-5  // 5 = 最重要，默认 3
+
+  // 新增：优先级
   priority: 'low' | 'medium' | 'high' | 'critical'
-  embedding?: number[]     // 搜索用语义向量
+
+  // ... 接口其余部分
 }
 ```
 
-**核心功能：**
+**我添加的视觉指示器:**
+- ⚠️ 表示 `critical` 优先级
+- 🔥 表示 `high` 优先级
+- ⭐ 表示 `importance >= 4`
 
-| 功能 | 描述 |
-|---------|-------------|
-| **用户意图触发** | 识别"记住这个"等短语来提取记忆 |
-| **语义搜索** | 记忆数 > 30 时启用向量相似度搜索 |
-| **解耦设计** | 无嵌入提供者时优雅降级 |
-| **本地计算** | 余弦相似度零额外 API 成本 |
-| **导入/导出** | JSON + CSV 支持合并模式 |
+**为什么重要:**
+- 关键信息（如用户偏好）可以被标记
+- 高优先级记忆在检索时优先显示
+- 视觉指示器帮助一眼识别重要记忆
 
-**与 Claude Code 对比：**
-
-| 功能 | Claude Code | AIRI |
-|---------|-------------|------|
-| 存储 | 文件系统 | IndexedDB（跨平台） |
-| 用户触发 | 无 | ✅ 短语检测 |
-| 优先级分级 | 无 | ✅ importance + priority |
-| 视觉标记 | 无 | ✅ ⚠️ 🔥 ⭐ 标记 |
-| 导入/导出 | 手动 | ✅ 内置支持 |
-
-**位置**：`packages/stage-ui/src/stores/memory/index.ts`
-
-**详细对比**：[AIRI_Claude_Code_Memory_Comparison.md](./AIRI_Claude_Code_Memory_Comparison.md)
+**代码位置:** [`packages/stage-ui/src/stores/memory/index.ts`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 4. 📦 上下文桶系统
+#### 4. 记忆导入/导出系统
+**日期:** 2026-04-30
+**修改文件:**
+- `packages/stage-ui/src/stores/memory/index.ts` (第 543-627 行)
 
-**是什么**：一个具有灵活更新策略的多源上下文注入系统。
+**我添加了什么:**
+
+完整的记忆数据备份和恢复功能：
 
 ```typescript
-// 按源分类的上下文桶
-const activeContexts = {
-  'system:datetime': [...],     // 当前时间
-  'system:memory': [...],       // 持久记忆
-  'minecraft:state': [...],     // 游戏状态
-  'plugin:custom': [...]        // 插件提供
+// 我实现的导出格式：
+exportMemories(format: 'json' | 'csv')  // 选择格式
+
+// 带合并模式的导入：
+importMemories(jsonData, merge: boolean)
+  // merge: true  - 更新已存在的，添加新的
+  // merge: false - 跳过已存在的，只添加新的
+```
+
+**JSON 导出格式:**
+```json
+{
+  "version": 1,
+  "characterId": "my-character",
+  "exportedAt": "2026-04-30T...",
+  "memories": [...]
 }
-
-// 两种更新策略：
-ContextUpdateStrategy.ReplaceSelf  // 替换整个上下文
-ContextUpdateStrategy.AppendSelf   // 追加到上下文
 ```
 
-**为什么重要：**
-- **源隔离**：每个上下文提供者独立管理
-- **策略灵活**：可为每个源选择替换或追加
-- **调试友好**：400 条上下文历史记录用于检查
-- **可观测**：完整的快照用于开发工具
+**为什么重要:**
+- 更换角色前备份重要记忆
+- 在不同角色间共享记忆配置
+- 在不同安装间迁移记忆
 
-**位置**：`packages/stage-ui/src/stores/chat/context-store.ts`
+**代码位置:** [`packages/stage-ui/src/stores/memory/index.ts:543-627`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 5. 🌐 多平台统一架构
+#### 5. 记忆过滤系统
+**日期:** 2026-04-30
+**修改文件:**
+- `packages/stage-ui/src/stores/memory/index.ts` (第 504-541 行)
+- `packages/stage-pages/src/pages/settings/modules/memory.vue`
 
-**是什么**：Web、桌面和移动端之间 100% 共享业务逻辑。
+**我添加了什么:**
 
+UI 和存储级别的记忆管理过滤：
+
+```typescript
+// 我添加的过滤状态：
+filterImportance: ref<number | null>(null) // 按重要性 1-5 过滤
+filterPriority: ref<string | null>(null) // 按优先级过滤
+
+// 计算过滤后的记录：
+filteredRecords = computed(() => {
+  let filtered = [...records.value]
+
+  // 应用重要性过滤
+  if (filterImportance.value !== null)
+    filtered = filtered.filter(r => r.importance === filterImportance.value)
+
+  // 应用优先级过滤
+  if (filterPriority.value !== null)
+    filtered = filtered.filter(r => r.priority === filterPriority.value)
+
+  // 按优先级、重要性、更新时间排序
+  filtered.sort((a, b) => {
+    // 优先级: critical > high > medium > low
+    // 然后重要性: 5 > 4 > 3 > 2 > 1
+    // 然后最新的在前
+  })
+
+  return filtered
+})
 ```
-apps/
-├── stage-web/         # Vue 3 (Web)
-├── stage-tamagotchi/  # Electron (桌面)
-└── stage-pocket/      # Capacitor (iOS/Android)
 
-packages/
-├── stage-ui/          # ← 所有核心逻辑在此共享
-├── stage-ui-live2d/   # Live2D 集成
-├── stage-ui-three/    # Three.js VRM 支持
-└── plugin-sdk/        # 插件系统
-```
-
-**平台矩阵：**
-
-| 平台 | 技术 | 状态 |
-|----------|-----------|--------|
-| Web | Vue 3 + Vite | ✅ 稳定 |
-| 桌面 | Electron | ✅ 稳定 |
-| 移动端 | Capacitor | ✅ 稳定 |
-
-**创新**：最少平台特定代码——只有入口点和适配层。
+**代码位置:** [`packages/stage-ui/src/stores/memory/index.ts:504-541`](./packages/stage-ui/src/stores/memory/index.ts)
 
 ---
 
-### 6. 🎭 实时角色动画
+#### 6. LLM 记忆工具目录
+**日期:** 2026-04-30
+**修改文件:**
+- `packages/stage-ui/src/stores/chat/context-providers/memory.ts` (第 12-25 行)
 
-**是什么**：由 LLM 情感标签和音频分析驱动的多层动画系统。
+**我添加了什么:**
 
+一个防止 LLM 幻觉不存在记忆工具名称的工具目录：
+
+```typescript
+const MEMORY_TOOLS_CATALOG = `## 记忆管理工具
+
+如需新增、更新或删除记忆，**只能**调用以下工具（其它名称都不存在，调用会报错）：
+
+- \`builtIn_memoryUpsert\` — 创建或更新一条记忆
+  - 必需参数：\`type\`, \`name\`, \`content\`
+  - 可选参数：\`description\`, \`importance\` (1-5), \`priority\`
+- \`builtIn_memoryDelete\` — 按 \`id\` 删除一条记忆
+- \`builtIn_memoryList\` — 列出当前记忆，可按 \`type\` 或 \`minImportance\` 过滤
+
+不要尝试调用 \`memory.write*\`、\`airi:system:memory:*\` 或任何其它名称的记忆工具。`
 ```
-音频流
-    ↓
-AudioAnalyzer (节拍检测、RMS)
-    ↓
-动画层：
-  ├─ 空闲动画
-  ├─ 动作层
-  ├─ 表情（来自 <|ACT:...|> 标签）
-  └─ 口型同步（音素映射）
-    ↓
-Live2D / Three.js 渲染器
-```
 
-**支持的引擎：**
-- **Live2D**：动作、表情、节拍同步
-- **Three.js VRM**：口型同步、表情、轮廓、眼球追踪
+**为什么重要:**
+LLM 经常尝试调用听起来合理但不存在的工具名称。这个目录明确告诉 LLM 有哪些工具，减少 API 错误。
 
-**位置**：`packages/stage-ui-live2d/`、`packages/stage-ui-three/`
+**代码位置:** [`packages/stage-ui/src/stores/chat/context-providers/memory.ts:12-25`](./packages/stage-ui/src/stores/chat/context-providers/memory.ts)
 
 ---
 
-## 架构概览
+### 🚧 进行中
 
+#### 语音中断管理器
+**日期:** 2026-04-30
+**新增文件:**
+- `packages/stage-ui/src/services/speech/interrupt-manager.ts` (新建)
+
+**我正在构建:**
+
+基于 VAD (语音活动检测) 的中断系统，与 Open-LLM-VTuber 设置兼容：
+
+```typescript
+// 我使用的 VAD 设置（与 Open-LLM-VTuber 兼容）：
+speechThreshold: 0.5 // 稍高一些以提高抗噪能力
+minSilenceDurationMs: 800 // 与 Open-LLM-VTuber 相同
+minSpeechDurationMs: 100 // 与 Open-LLM-VTuber 相同
 ```
-AIRI/
-├── apps/
-│   ├── stage-web/         # Web 应用
-│   ├── stage-tamagotchi/  # 桌面应用
-│   └── stage-pocket/      # 移动应用
-├── packages/
-│   ├── stage-ui/          # 核心业务逻辑（共享）
-│   ├── plugin-sdk/        # 插件系统
-│   ├── stage-ui-live2d/   # Live2D 集成
-│   └── stage-ui-three/    # Three.js VRM 支持
-└── plugins/               # 内置插件
-    ├── airi-plugin-bilibili-laplace/
-    ├── airi-plugin-claude-code/
-    ├── airi-plugin-homeassistant/
-    └── airi-plugin-web-extension/
-```
+
+**目的:**
+检测用户在 AI 回复时开始说话并触发中断。这实现了自然的对话流程，用户可以在 AI 说话时打断。
+
+**状态:** 已实现，集成进行中
+
+**代码位置:** [`packages/stage-ui/src/services/speech/interrupt-manager.ts`](./packages/stage-ui/src/services/speech/interrupt-manager.ts)
 
 ---
 
-## AIRI 能做什么？
+## 📊 与上游项目的记忆系统对比
 
-### 游戏能力
-- [x] 玩 [Minecraft](https://www.minecraft.net)
-- [x] 玩 [Factorio](https://www.factorio.com)
-- [x] 玩 [坎巴拉太空计划](https://www.kerbalspaceprogram.com/)
-
-### 通信平台
-- [x] 在 [Telegram](https://telegram.org) 聊天
-- [x] 在 [Discord](https://discord.com) 聊天
-
-### 角色渲染
-- [x] VRM 支持及动画
-- [x] Live2D 支持及动画
-- [x] 自动眨眼、注视、空闲动作
-
-### 智能能力
-- [x] 带嵌入搜索的语义记忆
-- [x] 用户意图识别
-- [x] 多源上下文管理
+| 功能 | 上游 AIRI | 我的分支 |
+|---------|-----------|---------|
+| LLM 工具访问 | ❌ 无 | ✅ 已实现 3 个工具 |
+| 用户意图触发 | ❌ 无 | ✅ 7 个触发短语 |
+| 重要性/优先级 | ❌ 无 | ✅ 两级系统 |
+| 视觉指示器 | ❌ 无 | ✅ ⚠️ 🔥 ⭐ 标记 |
+| 导入/导出 | ❌ 无 | ✅ JSON + CSV |
+| 过滤功能 | ❌ 无 | ✅ 按重要性/优先级 |
+| 工具目录 | ❌ 无 | ✅ 防止幻觉 |
 
 ---
 
-## 快速开始
-
-### 前置要求
-
-- Node.js 18+
-- pnpm 10+
-
-### 安装
+## 🛠️ 安装
 
 ```bash
-# 克隆仓库
-git clone https://github.com/moeru-ai/airi.git
+# 克隆我的分支
+git clone https://github.com/YukiOvOb/airi.git
 cd airi
 
 # 安装依赖
 pnpm install
 
-# 运行开发服务器
-pnpm dev        # Web
-pnpm dev:tamagotchi  # 桌面
-```
-
-### 构建
-
-```bash
-pnpm build
+# 运行开发
+pnpm dev              # Web 版本
+pnpm dev:tamagotchi   # 桌面版本
 ```
 
 ---
 
-## 文档
+## 📝 技术文档
 
 | 文档 | 描述 |
 |----------|-------------|
-| [记忆系统对比](./AIRI_Claude_Code_Memory_Comparison.md) | 与 Claude Code 记忆系统的详细对比 |
-| [Agent 指南](./AGENTS.md) | 代码库贡献者参考 |
-| [部署指南](./DEPLOYMENT.md) | 部署说明 |
-| [English](./README.md) | 英文版 |
+| [记忆系统对比](./AIRI_Claude_Code_Memory_Comparison.md) | 我对 AIRI 与 Claude Code 记忆系统的分析 |
+| [上游 README](./README.original.backup.md) | 原始 AIRI README (已备份) |
+| [English](./README.md) | 英文版页面 |
 
 ---
 
-## 支持的 LLM 提供商
+## 🔍 我修改的文件
 
-由 [xsai](https://github.com/moeru-ai/xsai) 提供支持：
-
-- OpenAI、Anthropic Claude、DeepSeek、Qwen、Google Gemini、xAI
-- OpenRouter、vLLM、SGLang、Ollama、Groq、Mistral
-- 以及 30+ 更多提供商...
-
----
-
-## 子项目
-
-AIRI 开发中诞生的项目：
-
-- [@proj-airi](https://github.com/proj-airi) 组织，包含所有 AIRI 相关项目
-- [xsai](https://github.com/moeru-ai/xsai) - 通用 LLM 提供商抽象
-- [memory-pgvector](https://github.com/moeru-ai/memory-pgvector) - 向量记忆存储
+```
+packages/stage-ui/src/
+├── tools/memory.ts                                    # 新建 - LLM 记忆工具
+├── services/speech/interrupt-manager.ts              # 新建 - VAD 中断系统
+├── stores/
+│   ├── memory/index.ts                               # 修改 - 优先级、导入导出、过滤
+│   ├── chat.ts                                       # 修改 - 用户意图触发
+│   └── chat/context-providers/memory.ts              # 修改 - 工具目录
+├── database/adapter.ts                               # 修改 - 记忆模式扩展
+└── components/scenes/Stage.vue                       # 修改 - UI 集成
+```
 
 ---
 
-## 社区与支持
+## 🤝 贡献
+
+这是个人开发分支。如果你想为官方 AIRI 项目做贡献，请访问 https://github.com/moeru-ai/airi
+
+---
+
+## 📄 许可证
+
+MIT (与上游相同)
+
+---
 
 <p align="center">
-  <a href="https://discord.gg/TgQ3Cu2F7A">
-    <img src="https://img.shields.io/badge/Discord-7389D8?logo=discord&logoColor=white">
-  </a>
-  <a href="https://x.com/proj_airi">
-    <img src="https://img.shields.io/badge/%40proj__airi-black?logo=x">
-  </a>
-  <a href="https://github.com/moeru-ai/airi/stargazers">
-    <img src="https://img.shields.io/github/stars/moeru-ai/airi?style=social">
-  </a>
+  <strong>上游项目:</strong> <a href="https://github.com/moeru-ai/airi">moeru-ai/airi</a>
 </p>
-
----
-
-## 许可证
-
-MIT © [Moeru AI Project](https://github.com/moeru-ai)
-
----
-
-<details>
-<summary>原始 README（备份）</summary>
-
-带有下载按钮和额外信息的原始 README 已备份至 `README.original.backup.md`。
-</details>

@@ -2,7 +2,7 @@ import type { TranscriptionProviderWithExtraOptions } from '@xsai-ext/providers/
 import type { WithUnknown } from '@xsai/shared'
 import type { StreamTranscriptionResult, StreamTranscriptionOptions as XSAIStreamTranscriptionOptions } from '@xsai/stream-transcription'
 
-import { errorMessageFrom, tryCatch } from '@moeru/std'
+import { errorMessageFrom, tryCatch, tryCatchAsync } from '@moeru/std'
 import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
 import { refManualReset } from '@vueuse/core'
 import { generateTranscription } from '@xsai/generate-transcription'
@@ -107,6 +107,11 @@ export const useHearingStore = defineStore('hearing-store', () => {
   const autoSendDelay = useLocalStorageManualReset<number>('settings/hearing/auto-send-delay', 2000) // Default 2 seconds
   const confidenceThreshold = useLocalStorageManualReset<number>('settings/hearing/confidence-threshold', CONFIDENCE_THRESHOLD_DISABLED)
   const verboseJsonNotSupported = ref(false)
+
+  // Voice interrupt settings - allow user speech to interrupt AI playback
+  const interruptEnabled = useLocalStorageManualReset<boolean>('settings/hearing/interrupt-enabled', true)
+  const interruptThreshold = useLocalStorageManualReset<number>('settings/hearing/interrupt-threshold', 0.5)
+  const interruptMinSilenceDuration = useLocalStorageManualReset<number>('settings/hearing/interrupt-min-silence-duration', 300)
 
   watch(activeTranscriptionProvider, () => {
     verboseJsonNotSupported.value = false
@@ -238,13 +243,47 @@ export const useHearingStore = defineStore('hearing-store', () => {
     }
 
     const useVerboseJson = !format && confidenceThreshold.value > CONFIDENCE_THRESHOLD_DISABLED
-    const response = await generateTranscription({
-      ...provider.transcription(model, options?.providerOptions),
-      file: normalizedInput.file,
-      responseFormat: useVerboseJson ? 'verbose_json' : format,
-    })
+    let response: Awaited<ReturnType<typeof generateTranscription>>
 
     if (useVerboseJson) {
+      // Try verbose_json first for confidence filtering support
+      const verboseResult = await tryCatchAsync(() => generateTranscription({
+        ...provider.transcription(model, options?.providerOptions),
+        file: normalizedInput.file!,
+        responseFormat: 'verbose_json' as const,
+      }))
+
+      if (verboseResult.error) {
+        const errorMsg = verboseResult.error instanceof Error ? verboseResult.error.message : String(verboseResult.error)
+        if (errorMsg.includes('verbose_json') || errorMsg.includes('unsupported_value')) {
+          console.warn('[Hearing] Provider does not support verbose_json, falling back to json format.')
+          verboseJsonNotSupported.value = true
+          response = await generateTranscription({
+            ...provider.transcription(model, options?.providerOptions),
+            file: normalizedInput.file!,
+            responseFormat: format || 'json',
+          })
+        }
+        else {
+          throw verboseResult.error
+        }
+      }
+      else if (verboseResult.data) {
+        response = verboseResult.data
+      }
+      else {
+        throw new Error('Unknown error occurred during transcription')
+      }
+    }
+    else {
+      response = await generateTranscription({
+        ...provider.transcription(model, options?.providerOptions),
+        file: normalizedInput.file!,
+        responseFormat: format,
+      })
+    }
+
+    if (useVerboseJson && !verboseJsonNotSupported.value) {
       if (response.segments) {
         verboseJsonNotSupported.value = false
         return {
@@ -275,6 +314,9 @@ export const useHearingStore = defineStore('hearing-store', () => {
     autoSendDelay,
     confidenceThreshold,
     verboseJsonNotSupported,
+    interruptEnabled,
+    interruptThreshold,
+    interruptMinSilenceDuration,
 
     supportsModelListing,
     providerModels,

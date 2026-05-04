@@ -1,5 +1,7 @@
 export type MemoryType = 'user' | 'feedback' | 'project' | 'reference'
 
+export type MemoryPriority = 'low' | 'medium' | 'high' | 'critical'
+
 export interface MemoryRecord {
   id: string
   characterId: string
@@ -8,6 +10,10 @@ export interface MemoryRecord {
   type: MemoryType
   content: string
   updatedAt: number // unix ms
+  /** Importance score from 1 (least important) to 5 (most important). Default: 3 */
+  importance?: 1 | 2 | 3 | 4 | 5
+  /** Priority level for sorting and filtering. Default: 'medium' */
+  priority?: MemoryPriority
   /** Optional embedding vector for semantic search. Text dimension from model (e.g. 1536 for text-embedding-3-small). */
   embedding?: number[]
 }

@@ -5,6 +5,7 @@ import { defineStore, storeToRefs } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 
 import { useLlmmarkerParser } from '../../composables/llm-marker-parser'
+import { categorizeResponse } from '../../composables/response-categoriser'
 import { useAiriCardStore } from '../modules'
 import { useSpeechRuntimeStore } from '../speech-runtime'
 
@@ -45,6 +46,16 @@ export const useCharacterStore = defineStore('character', () => {
   const speechRuntimeStore = useSpeechRuntimeStore()
 
   async function emitTextOutput(text: string) {
+    // Extract only speech text from the response, filtering out JSON keys, reasoning tags, etc.
+    // This prevents TTS from reading things like {"reply": "...", "emotion": "..."}
+    const categorized = categorizeResponse(text)
+    const speechText = categorized.speech
+
+    // If no speech text after filtering, don't emit anything
+    if (!speechText.trim()) {
+      return
+    }
+
     const intent = speechRuntimeStore.openIntent({
       ownerId: ownerId.value,
       priority: 'normal',
@@ -62,7 +73,7 @@ export const useCharacterStore = defineStore('character', () => {
       },
     })
 
-    await parser.consume(text)
+    await parser.consume(speechText)
     await parser.end()
 
     intent.writeFlush()
@@ -102,7 +113,15 @@ export const useCharacterStore = defineStore('character', () => {
 
     const state = streamingReactions.value.get(sparkEventId)!
     state.reaction.message += chunk
-    void state.parser.consume(chunk)
+
+    // Extract speech text for TTS, filtering out JSON keys and reasoning content
+    const categorized = categorizeResponse(state.reaction.message)
+    const speechText = categorized.speech
+
+    // Only send filtered speech text to TTS
+    if (speechText.trim()) {
+      void state.parser.consume(speechText)
+    }
   }
 
   function onSparkNotifyReactionStreamEnd(sparkEventId: string, fullText: string, options?: { metadata?: Record<string, unknown> }) {
@@ -113,11 +132,23 @@ export const useCharacterStore = defineStore('character', () => {
     state.reaction.message = fullText
     recordSparkNotifyReaction(sparkEventId, fullText, { metadata: options?.metadata })
 
-    void state.parser.end().then(() => {
-      state.intent.writeFlush()
+    // Extract speech text for final TTS output
+    const categorized = categorizeResponse(fullText)
+    const speechText = categorized.speech
+
+    // Only process speech text for TTS
+    if (speechText.trim()) {
+      void state.parser.end().then(() => {
+        state.intent.writeFlush()
+        state.intent.end()
+        streamingReactions.value.delete(sparkEventId)
+      })
+    }
+    else {
+      // No speech text, end immediately
       state.intent.end()
       streamingReactions.value.delete(sparkEventId)
-    })
+    }
   }
 
   function recordSparkNotifyReaction(sparkEventId: string, message: string, options?: { metadata?: Record<string, unknown> }) {

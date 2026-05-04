@@ -123,3 +123,69 @@ export interface LoggerLike {
   warn: (message: string, ...args: unknown[]) => void
   error: (message: string, ...args: unknown[]) => void
 }
+
+/**
+ * Display text information for subtitles
+ */
+export interface DisplayText {
+  text: string
+  name?: string
+  avatar?: string
+}
+
+/**
+ * Live2D model actions
+ */
+export interface Actions {
+  expressions?: (string | number)[]
+  pictures?: string[]
+  sounds?: string[]
+}
+
+/**
+ * Sentence output after TTS filtering
+ */
+export interface SentenceOutput {
+  displayText: DisplayText
+  ttsText: string
+  actions: Actions | null
+}
+
+/**
+ * Tag state for nested tag handling
+ */
+export enum TagState {
+  NONE = 'none',
+  START = 'start',
+  INSIDE = 'inside',
+  END = 'end',
+  SELF_CLOSING = 'self',
+}
+
+/**
+ * Tag information
+ */
+export interface TagInfo {
+  name: string
+  state: TagState
+}
+
+/**
+ * Sentence with associated tags
+ */
+export interface SentenceWithTags {
+  text: string
+  tags: TagInfo[]
+}
+
+/**
+ * Result of TTS preprocessing
+ */
+export interface TtsPreprocessResult {
+  /** Text to display in UI (subtitles) */
+  displayText: string
+  /** Text to send to TTS engine (may be empty for think content) */
+  ttsText: string
+  /** Whether this is think-only content (silent) */
+  isSilent: boolean
+}

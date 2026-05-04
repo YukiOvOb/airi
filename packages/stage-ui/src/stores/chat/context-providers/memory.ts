@@ -9,6 +9,21 @@ import { useMemoryStore } from '../../memory'
 const MEMORY_CONTEXT_ID = 'system:memory'
 const RELEVANT_MEMORY_THRESHOLD = 30 // Use embedding search when memories exceed this count
 
+// Tool catalog injected into every memory context so the LLM never has to guess
+// memory tool names. Without this, models tend to hallucinate plausible-sounding
+// tool names like `airi:system:memory:update` or `memory.writeObject`.
+const MEMORY_TOOLS_CATALOG = `## 记忆管理工具
+
+如需新增、更新或删除记忆，**只能**调用以下工具（其它名称都不存在，调用会报错）：
+
+- \`builtIn_memoryUpsert\` — 创建或更新一条记忆
+  - 必需参数：\`type\` (user | feedback | project | reference), \`name\`, \`content\`
+  - 可选参数：\`description\`, \`importance\` (1-5), \`priority\` (low | medium | high | critical)
+- \`builtIn_memoryDelete\` — 按 \`id\` 删除一条记忆
+- \`builtIn_memoryList\` — 列出当前记忆，可按 \`type\` 或 \`minImportance\` 过滤
+
+不要尝试调用 \`memory.write*\`、\`airi:system:memory:*\` 或任何其它名称的记忆工具。`
+
 // Memory context debug logger
 const DEBUG = import.meta.env.DEV || localStorage.getItem('debug:memory') === 'true'
 function logDebug(...args: unknown[]) {
@@ -18,6 +33,7 @@ function logDebug(...args: unknown[]) {
 
 /**
  * Build memory prompt from a specific set of memories (for injection).
+ * Prioritizes high-priority and high-importance memories.
  */
 function buildPromptFromMemories(memories: MemoryRecord[]): string {
   if (memories.length === 0)
@@ -49,15 +65,27 @@ function buildPromptFromMemories(memories: MemoryRecord[]): string {
     reference: '## 参考资源',
   }
 
+  const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+
   for (const type of ['user', 'feedback', 'project', 'reference'] as const) {
     const group = byType[type]
     if (group.length === 0)
       continue
     sections.push(typeLabels[type])
-    for (const r of group) {
+    // Sort by priority and importance
+    const sorted = [...group].sort((a, b) => {
+      const priorityA = priorityOrder[a.priority || 'medium'] ?? 2
+      const priorityB = priorityOrder[b.priority || 'medium'] ?? 2
+      if (priorityA !== priorityB)
+        return priorityA - priorityB
+      return (b.importance ?? 3) - (a.importance ?? 3)
+    })
+    for (const r of sorted) {
       const memoryStore = useMemoryStore()
       const note = memoryStore.freshnessNote(r.updatedAt)
-      sections.push(`### ${r.name}${note ? ` ${note}` : ''}`)
+      const priorityMark = r.priority === 'critical' ? ' ⚠️' : r.priority === 'high' ? ' 🔥' : ''
+      const importanceMark = (r.importance || 3) >= 4 ? ' ⭐' : ''
+      sections.push(`### ${r.name}${note ? ` ${note}` : ''}${priorityMark}${importanceMark}`)
       sections.push(r.content)
     }
   }
@@ -66,6 +94,17 @@ function buildPromptFromMemories(memories: MemoryRecord[]): string {
 以下是关于用户的持久记忆，请在回复时参考：
 
 ${sections.join('\n\n')}
+
+---
+${MEMORY_TOOLS_CATALOG}
+</memory>`
+}
+
+function buildEmptyMemoryPrompt(): string {
+  return `<memory>
+当前没有持久记忆。当你了解到关于用户、行为偏好、项目背景或参考资源的重要信息时，请使用下方工具保存。
+
+${MEMORY_TOOLS_CATALOG}
 </memory>`
 }
 
@@ -111,13 +150,10 @@ export async function createMemoryContext(options?: { query?: string, latestUser
     logDebug('createMemoryContext: using all memories, count:', memoriesToInject.length)
   }
 
-  if (memoriesToInject.length === 0) {
-    logDebug('createMemoryContext: no memories to inject')
-    return null
-  }
-
-  const prompt = buildPromptFromMemories(memoriesToInject)
-  logDebug('createMemoryContext: injecting memory context, length:', prompt.length)
+  const prompt = memoriesToInject.length === 0
+    ? buildEmptyMemoryPrompt()
+    : buildPromptFromMemories(memoriesToInject)
+  logDebug('createMemoryContext: injecting memory context, length:', prompt.length, 'memories:', memoriesToInject.length)
 
   return {
     id: nanoid(),
@@ -145,13 +181,10 @@ export function createMemoryContextSync(): ContextMessage | null {
   const memoryStore = useMemoryStore()
   const memoriesToInject = memoryStore.records
 
-  if (memoriesToInject.length === 0) {
-    logDebug('createMemoryContextSync: no memories to inject')
-    return null
-  }
-
-  const prompt = buildPromptFromMemories(memoriesToInject)
-  logDebug('createMemoryContextSync: injecting memory context, length:', prompt.length)
+  const prompt = memoriesToInject.length === 0
+    ? buildEmptyMemoryPrompt()
+    : buildPromptFromMemories(memoriesToInject)
+  logDebug('createMemoryContextSync: injecting memory context, length:', prompt.length, 'memories:', memoriesToInject.length)
 
   return {
     id: nanoid(),

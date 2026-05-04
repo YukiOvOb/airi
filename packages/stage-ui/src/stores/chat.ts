@@ -121,6 +121,93 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     pendingQueuedSendCount.value = pendingQueuedSends.value.length
   })
 
+  // ── Memory Extraction Trigger Helpers ───────────────────────────────────────
+
+  // Pre-compiled regex for trigger phrase detection (module scope for performance)
+  const TRIGGER_PHRASES = [
+    '你把我说的话记住了',
+    '记住我说的话',
+    '记住了吗',
+    '把这句话记住',
+    '记住这个',
+    '记录下来',
+    '你记住了',
+  ] as const
+  const NORMALIZE_REGEX = /\s+/g
+
+  /**
+   * Check if the user's message contains a phrase that triggers memory extraction.
+   * Supports variations like: "记住", "记住了吗", "把我说的话记住", etc.
+   */
+  function shouldTriggerMemoryExtraction(message: string): boolean {
+    const normalizedMessage = message.toLowerCase().replace(NORMALIZE_REGEX, '')
+    return TRIGGER_PHRASES.some(phrase => normalizedMessage.includes(phrase.toLowerCase()))
+  }
+
+  /**
+   * Trigger memory extraction for the current session.
+   * Uses LLM to intelligently extract and format memories from the conversation.
+   * @param sessionId - The session ID to extract memories from
+   * @param userMessage - The user message that triggered the extraction
+   */
+  async function triggerMemoryExtraction(sessionId: string, userMessage?: string) {
+    const sessionMessages = chatSession.sessionMessages[sessionId]
+    if (!sessionMessages || sessionMessages.length < 2) {
+      console.info('[ChatOrchestrator] Memory extraction triggered, but not enough messages')
+      return
+    }
+
+    console.info('[ChatOrchestrator] Manual memory extraction triggered:', { sessionId, messageCount: sessionMessages.length })
+
+    try {
+      const chatProvider = await providersStore.getProviderInstance<ChatProvider>(activeProvider.value)
+      if (!chatProvider) {
+        console.warn('[ChatOrchestrator] No chat provider available for memory extraction')
+        return
+      }
+
+      const model = activeModel.value
+      if (!model) {
+        console.warn('[ChatOrchestrator] No model configured for memory extraction')
+        return
+      }
+
+      console.info('[ChatOrchestrator] Starting LLM memory extraction with model:', model)
+
+      const chatConfig = chatProvider.chat(model)
+
+      const genText = async (prompt: string): Promise<string> => {
+        const result = await generateText({
+          ...chatConfig,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 2000,
+        })
+        return result.text ?? ''
+      }
+
+      const extractable = sessionMessages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role as string, content: typeof m.content === 'string' ? m.content : '' }))
+
+      // When triggered by user, add special context to the extraction
+      if (userMessage) {
+        // Add a system note about the user's request
+        extractable.push({
+          role: 'system',
+          content: `[注意] 用户刚刚明确请求记录对话内容（说："${userMessage}"）。请优先将用户最后几轮对话中最重要的信息提取为记忆，生成简洁有意义的名称和描述。`,
+        })
+      }
+
+      await memoryStore.extractFromConversation(extractable, genText)
+      console.info('[ChatOrchestrator] LLM memory extraction completed')
+    }
+    catch (error) {
+      console.error('[ChatOrchestrator] LLM memory extraction failed:', error)
+    }
+  }
+
+  // ── Session Switch Memory Extraction ────────────────────────────────────────
+
   // When the active session changes, extract memorable information from the
   // outgoing session in the background while still in the foreground.
   watch(activeSessionId, (newId, oldId) => {
@@ -479,6 +566,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       if (isForegroundSession()) {
         streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+      }
+
+      // Check if user triggered memory extraction with a specific phrase
+      if (shouldTriggerMemoryExtraction(sendingMessage)) {
+        console.info('[ChatOrchestrator] Memory extraction trigger phrase detected')
+        await triggerMemoryExtraction(sessionId, sendingMessage)
       }
     }
     catch (error) {

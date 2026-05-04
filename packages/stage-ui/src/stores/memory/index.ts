@@ -1,6 +1,6 @@
 import type { EmbedProvider } from '@xsai-ext/providers/utils'
 
-import type { MemoryRecord, MemoryType } from '../../database/adapter'
+import type { MemoryPriority, MemoryRecord, MemoryType } from '../../database/adapter'
 
 import { embed } from '@xsai/embed'
 import { nanoid } from 'nanoid'
@@ -15,11 +15,17 @@ const MAX_INDEX_LINES = 200
 const MAX_INDEX_BYTES = 25_000
 const TOP_K_MEMORIES = 5 // Number of relevant memories to retrieve
 
+// Pre-compiled regex for JSON extraction (module scope for performance)
+// eslint-disable-next-line regexp/no-super-linear-backtracking -- Required to match arbitrary content in code blocks
+const JSON_CODE_BLOCK_REGEX = /```json\s+([\s\S]+?)```|```\s+([\s\S]+?)```/
+// eslint-disable-next-line regexp/use-ignore-case, regexp/no-dupe-characters-character-class -- JSON structure requires escaping
+const JSON_ARRAY_REGEX = /(\[[\]{}{},:\s"a-zA-Z0-9]+\])/
+
 // Memory store debug logger
 const DEBUG = import.meta.env.DEV || localStorage.getItem('debug:memory') === 'true'
 function logDebug(...args: unknown[]) {
   if (DEBUG)
-    console.log('[MemoryStore]', ...args)
+    console.info('[MemoryStore]', ...args)
 }
 
 function logError(...args: unknown[]) {
@@ -35,6 +41,10 @@ export const useMemoryStore = defineStore('memory', () => {
   const records = ref<MemoryRecord[]>([])
   const indexContent = ref('')
   const ready = ref(false)
+
+  // Filter states
+  const filterImportance = ref<number | null>(null)
+  const filterPriority = ref<string | null>(null)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -231,7 +241,14 @@ export const useMemoryStore = defineStore('memory', () => {
         embedding = await generateEmbedding(textToEmbed) || undefined
       }
 
-      const saved = await memoriesRepo.upsert({ ...input, characterId: charId, embedding })
+      // Set default values for importance and priority
+      const recordWithDefaults = {
+        ...input,
+        importance: input.importance ?? 3,
+        priority: input.priority ?? 'medium',
+      }
+
+      const saved = await memoriesRepo.upsert({ ...recordWithDefaults, characterId: charId, embedding })
       const idx = records.value.findIndex(r => r.id === saved.id)
       if (idx >= 0) {
         records.value[idx] = saved
@@ -271,6 +288,7 @@ export const useMemoryStore = defineStore('memory', () => {
   /**
    * Build the <memory> block that gets injected into the system prompt.
    * Keeps index + full content of all memories within the 25 KB budget.
+   * Prioritizes high-importance and critical-priority memories.
    */
   function buildMemoryPrompt(): string {
     if (records.value.length === 0) {
@@ -303,14 +321,26 @@ export const useMemoryStore = defineStore('memory', () => {
       reference: '## 参考资源',
     }
 
+    const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+
     for (const type of ['user', 'feedback', 'project', 'reference'] as MemoryType[]) {
       const group = byType[type]
       if (group.length === 0)
         continue
       sections.push(typeLabels[type])
-      for (const r of group) {
+      // Sort by priority and importance within each type
+      const sorted = [...group].sort((a, b) => {
+        const priorityA = priorityOrder[a.priority || 'medium'] ?? 2
+        const priorityB = priorityOrder[b.priority || 'medium'] ?? 2
+        if (priorityA !== priorityB)
+          return priorityA - priorityB
+        return (b.importance ?? 3) - (a.importance ?? 3)
+      })
+      for (const r of sorted) {
         const note = freshnessNote(r.updatedAt)
-        sections.push(`### ${r.name}${note ? ` ${note}` : ''}`)
+        const priorityMark = r.priority === 'critical' ? ' ⚠️' : r.priority === 'high' ? ' 🔥' : ''
+        const importanceMark = (r.importance || 3) >= 4 ? ' ⭐' : ''
+        sections.push(`### ${r.name}${note ? ` ${note}` : ''}${priorityMark}${importanceMark}`)
         sections.push(r.content)
       }
     }
@@ -369,20 +399,26 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
     "name": "简短名称",
     "description": "一行描述",
     "type": "user|feedback|project|reference",
-    "content": "记忆正文（Markdown，100字以内）"
+    "content": "记忆正文（Markdown，100字以内）",
+    "importance": 1-5的数字（5最重要，默认3），
+    "priority": "low|medium|high|critical"（默认medium，紧急或重要事项用high/critical）
   }
 ]
 
 规则：
 - 无有价值信息时输出空数组 []
 - 不存储可从代码/历史推导的内容
-- feedback 类必须包含原因`
+- feedback 类必须包含原因
+- importance: 5=极度重要（核心信息），4=很重要，3=一般重要，2=不太重要，1=次要信息
+- priority: critical=立即需要，high=重要但非紧急，medium=正常，low=较低优先级`
 
     let raw: string
     try {
       logDebug('extractFromConversation: calling LLM for extraction...')
       raw = await generateText(prompt)
       logDebug('extractFromConversation: LLM response length:', raw.length)
+      // Log raw response for debugging (truncated to avoid huge logs)
+      logDebug('extractFromConversation: raw response (first 500 chars):', raw.substring(0, 500))
     }
     catch (error) {
       logError('extractFromConversation: LLM call failed', error)
@@ -390,11 +426,14 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
     }
 
     // Extract JSON from response (handle markdown code blocks)
-    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/(\[[\s\S]*\])/)
+    const jsonMatch = raw.match(JSON_CODE_BLOCK_REGEX) || raw.match(JSON_ARRAY_REGEX)
     if (!jsonMatch) {
-      logDebug('extractFromConversation: no JSON found in response')
+      logDebug('extractFromConversation: no JSON found in response, full response:', raw)
       return
     }
+
+    const jsonContent = jsonMatch[1] || jsonMatch[0]
+    logDebug('extractFromConversation: extracted JSON content:', jsonContent)
 
     let extracted: Array<{
       id?: string
@@ -402,14 +441,17 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
       description: string
       type: string
       content: string
+      importance?: number
+      priority?: string
     }>
 
     try {
-      extracted = JSON.parse(jsonMatch[1] || jsonMatch[0])
+      extracted = JSON.parse(jsonContent)
       logDebug('extractFromConversation: parsed JSON, item count:', extracted.length)
     }
     catch (error) {
       logError('extractFromConversation: failed to parse JSON', error)
+      logError('extractFromConversation: JSON content that failed to parse:', jsonContent)
       return
     }
 
@@ -430,12 +472,27 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
         continue
       }
 
+      // Validate and normalize importance
+      let importance: 1 | 2 | 3 | 4 | 5 = 3
+      if (typeof item.importance === 'number' && item.importance >= 1 && item.importance <= 5) {
+        importance = item.importance as 1 | 2 | 3 | 4 | 5
+      }
+
+      // Validate and normalize priority
+      const validPriorities: MemoryPriority[] = ['low', 'medium', 'high', 'critical']
+      let priority: MemoryPriority = 'medium'
+      if (item.priority && validPriorities.includes(item.priority as MemoryPriority)) {
+        priority = item.priority as MemoryPriority
+      }
+
       await upsertMemory({
         id: item.id || nanoid(),
         name: item.name,
         description: item.description || item.name,
         type: item.type as MemoryType,
         content: item.content,
+        importance,
+        priority,
       })
       savedCount++
     }
@@ -452,11 +509,137 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
     return result
   })
 
+  // Filtered and sorted records
+  const filteredRecords = computed(() => {
+    let filtered = [...records.value]
+
+    // Apply importance filter
+    if (filterImportance.value !== null) {
+      filtered = filtered.filter(r => r.importance === filterImportance.value)
+    }
+
+    // Apply priority filter
+    if (filterPriority.value !== null) {
+      filtered = filtered.filter(r => r.priority === filterPriority.value)
+    }
+
+    // Sort by priority (critical first), then importance (5 first), then updatedAt
+    const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+    filtered.sort((a, b) => {
+      const priorityA = priorityOrder[a.priority || 'medium'] ?? 2
+      const priorityB = priorityOrder[b.priority || 'medium'] ?? 2
+      if (priorityA !== priorityB)
+        return priorityA - priorityB
+      const importanceA = a.importance ?? 3
+      const importanceB = b.importance ?? 3
+      if (importanceA !== importanceB)
+        return importanceB - importanceA
+      return b.updatedAt - a.updatedAt
+    })
+
+    return filtered
+  })
+
+  // ── Import / Export ───────────────────────────────────────────────────────
+
+  async function exportMemories(format: 'json' | 'csv' = 'json'): Promise<string> {
+    const data = records.value
+
+    if (format === 'json') {
+      return JSON.stringify({
+        version: 1,
+        characterId: currentCharId(),
+        exportedAt: new Date().toISOString(),
+        memories: data,
+      }, null, 2)
+    }
+    else {
+      // CSV format
+      const headers = ['id', 'type', 'name', 'description', 'content', 'importance', 'priority', 'updatedAt']
+      const rows = data.map(r => [
+        r.id,
+        r.type,
+        `"${r.name.replace(/"/g, '""')}"`,
+        `"${r.description.replace(/"/g, '""')}"`,
+        `"${r.content.replace(/"/g, '""').replace(/\n/g, '\\n')}"`,
+        r.importance ?? 3,
+        r.priority ?? 'medium',
+        r.updatedAt,
+      ])
+      return [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    }
+  }
+
+  async function importMemories(jsonData: string, merge: boolean = false): Promise<{ imported: number, skipped: number, errors: string[] }> {
+    const errors: string[] = []
+    let imported = 0
+    let skipped = 0
+
+    try {
+      const data = JSON.parse(jsonData)
+
+      // Validate format
+      if (!data.version || !Array.isArray(data.memories)) {
+        throw new Error('Invalid import format: missing version or memories array')
+      }
+
+      for (const memory of data.memories) {
+        try {
+          // Validate required fields
+          if (!memory.name || !memory.type || !memory.content) {
+            errors.push(`Skipping invalid memory: ${memory.name || '(no name)'}`)
+            skipped++
+            continue
+          }
+
+          // Check if memory already exists when not merging
+          const existing = records.value.find(r => r.id === memory.id)
+          if (existing && !merge) {
+            skipped++
+            continue
+          }
+
+          await upsertMemory({
+            id: merge ? memory.id : undefined, // Generate new ID if not merging
+            name: memory.name,
+            description: memory.description || memory.name,
+            type: memory.type,
+            content: memory.content,
+            importance: memory.importance ?? 3,
+            priority: memory.priority ?? 'medium',
+          })
+          imported++
+        }
+        catch (error) {
+          errors.push(`Failed to import "${memory.name}": ${error}`)
+          logError('importMemories: failed for memory:', memory.name, error)
+        }
+      }
+
+      logDebug(`importMemories: complete, imported=${imported}, skipped=${skipped}, errors=${errors.length}`)
+    }
+    catch (error) {
+      logError('importMemories: failed to parse JSON', error)
+      throw new Error('Invalid JSON format')
+    }
+
+    return { imported, skipped, errors }
+  }
+
+  function clearFilters() {
+    filterImportance.value = null
+    filterPriority.value = null
+  }
+
   return {
     records,
     indexContent,
     ready,
     byType,
+    filteredRecords,
+    filterImportance,
+    filterPriority,
+    clearFilters,
     init,
     upsertMemory,
     deleteMemory,
@@ -466,6 +649,8 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
     extractFromConversation,
     findRelevantMemories,
     getEmbeddingConfig,
+    exportMemories,
+    importMemories,
     ageDays,
     freshnessNote,
   }
